@@ -1,0 +1,8 @@
+# Temporary test outputs
+*.tmp
+*.temp
+*.log
+
+# Test output directories
+output/
+results/
