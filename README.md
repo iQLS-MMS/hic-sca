@@ -86,22 +86,22 @@ The easiest way to use HiC-SCA is through the command-line interface:
 
 ```bash
 # Process single resolution
-hic-sca -f sample.hic -r 100000 -p my_sample
+hic-sca -f hic-sca/tests/test_data/ENCFF216ZNY_Intra_Only.hic -r 100000 -p my_sample
 
 # Process with BED and BedGraph output
-hic-sca -f sample.hic -r 100000 -p my_sample --bed --bedgraph
+hic-sca -f hic-sca/tests/test_data/ENCFF216ZNY_Intra_Only.hic -r 100000 -p my_sample --bed --bedgraph
 
 # Process multiple resolutions
-hic-sca -f sample.hic -r 100000 50000 25000 -p my_sample
+hic-sca -f hic-sca/tests/test_data/ENCFF216ZNY_Intra_Only.hic -r 100000 50000 25000 -p my_sample
 
 # Process all available resolutions with verbose output
-hic-sca -f sample.hic -p my_sample -v
+hic-sca -f hic-sca/tests/test_data/ENCFF216ZNY_Intra_Only.hic -p my_sample -v
 
 # Specify output directory
-hic-sca -f sample.hic -r 100000 -p my_sample -o results/
+hic-sca -f hic-sca/tests/test_data/ENCFF216ZNY_Intra_Only.hic -r 100000 -p my_sample -o results/
 
 # Process specific chromosomes
-hic-sca -f sample.hic -r 100000 -c chr1 chr2 chr3 -p my_sample
+hic-sca -f hic-sca/tests/test_data/ENCFF216ZNY_Intra_Only.hic -r 100000 -c chr1 chr2 chr3 -p my_sample
 ```
 
 **Output files:**
@@ -119,7 +119,7 @@ from hicsca import HiCSCA
 
 # Initialize pipeline with Hi-C file
 hicsca = HiCSCA(
-    hic_file_path="sample.hic",
+    hic_file_path="hic-sca/tests/test_data/ENCFF216ZNY_Intra_Only.hic",
     resolutions=[100000],  # or None for auto-detect all
     chr_names=None  # None = all autosomal chromosomes
 )
@@ -582,6 +582,9 @@ pytest tests/test_hicsca.py::TestRegressionComparison
 - Cross-resolution analysis validation
 
 **Note**: Regression tests require test data files in `tests/test_data/` (ENCFF216ZNY_Intra_Only.hic and reference.h5).
+
+### Test Data
+The test .hic dataset contains only the intra-chromosomal contacts of [ENCFF216ZNY](https://www.encodeproject.org/files/ENCFF216ZNY/). The file is located at [tests/test_data/ENCFF216ZNY_Intra_Only.hic](./tests/test_data/ENCFF216ZNY_Intra_Only.hic)
 
 ## Other Documentation
 
