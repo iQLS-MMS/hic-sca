@@ -2,7 +2,7 @@
 
 A Python package for predicting A-B chromosomal compartments from Hi-C (chromosome conformation capture) data using spectral decomposition and observed/expected normalization.
 
-## Overview
+## Overview<a id="overview"></a>
 
 HiC-SCA implements a complete pipeline for analyzing Hi-C contact matrices to identify chromatin compartmentalization patterns. It uses spectral decomposition with adaptive tolerance adjustment and an advanced eigenvector selection algorithm to predict A and B chromosomal compartments.
 
@@ -32,20 +32,21 @@ HiC-SCA implements a complete pipeline for analyzing Hi-C contact matrices to id
   - [Results Dictionary Structure](#results-dictionary-structure)
   - [Evaluation Tools](#evaluation-tools)
 - [Testing](#testing)
+  - [Test Data](#test-data)
 - [Other Documentation](#other-documentation)
 - [Citation](#citation)
 - [License](#license)
 - [Contributing](#contributing)
 - [Acknowledgments](#acknowledgments)
 
-## Installation
+## Installation<a id="installation"></a>
 
-### Requirements
+### Requirements<a id="requirements"></a>
 
 - Python >= 3.10
 - pip >= 21.0
 
-### Install from Source
+### Install from Source<a id="install-from-source"></a>
 
 HiC-SCA requires the [h5typer](https://github.com/iQLS-MMS/h5typer) package as a dependency.
 
@@ -66,7 +67,7 @@ pip install .
 pip install ".[tests]"
 ```
 
-### Dependencies
+### Dependencies<a id="dependencies"></a>
 
 The package automatically installs:
 - hicstraw >= 1.3.0 (reading .hic files)
@@ -78,9 +79,9 @@ The package automatically installs:
 - matplotlib >= 3.0.0 (plotting)
 - h5typer >= 0.1.0 (HDF5 type mapping)
 
-## Quick Start
+## Quick Start<a id="quick-start"></a>
 
-### Command-Line Interface
+### Command-Line Interface<a id="command-line-interface"></a>
 
 The easiest way to use HiC-SCA is through the command-line interface:
 
@@ -112,7 +113,7 @@ hic-sca -f hic-sca/tests/test_data/ENCFF216ZNY_Intra_Only.hic -r 100000 -c chr1 
 - `my_sample_chr1_100000bp.png` - Compartment plot for chr1
 - `my_sample_cross_resolution_mcc.png` - Cross-resolution MCC heatmap (if multiple resolutions)
 
-### Python API
+### Python API<a id="python-api"></a>
 
 ```python
 from hicsca import HiCSCA
@@ -148,9 +149,9 @@ hicsca.plot_compartments(100000, output_dir="plots", output_prefix="sample")
 hicsca.plot_cross_resolution_mcc(save_path="cross_res_mcc.png")
 ```
 
-## Command-Line Interface
+## Command-Line Interface<a id="command-line-interface-1"></a>
 
-### Arguments
+### Arguments<a id="arguments"></a>
 
 **Required (one of):**
 - `-f, --hic-file PATH` - Path to input .hic file
@@ -166,7 +167,7 @@ hicsca.plot_cross_resolution_mcc(save_path="cross_res_mcc.png")
 - `--bed` - Generate BED files for each resolution
 - `--bedgraph` - Generate BedGraph files for each resolution
 
-### Usage Examples
+### Usage Examples<a id="usage-examples"></a>
 
 ```bash
 # Basic usage
@@ -200,11 +201,11 @@ hic-sca --load-hdf5 results.h5 -f data.hic -p output
 hic-sca --load-hdf5 results.h5 -r 100000 -c chr1 chr2 -p output --bed
 ```
 
-### Output Files
+### Output Files<a id="output-files"></a>
 
 The CLI generates the following output files:
 
-#### 1. HDF5 Results File (always generated)
+#### 1. HDF5 Results File (always generated)<a id="1-hdf5-results-file-always-generated"></a>
 **Filename:** `{prefix}_results.h5`
 
 Complete analysis results for all resolutions and chromosomes:
@@ -228,7 +229,7 @@ hicsca = HiCSCA.from_hdf5("results.h5", hic_file_path="data.hic")
 hicsca.process_chromosome("chr1")  # Can process more chromosomes
 ```
 
-#### 2. Excel Files (always generated)
+#### 2. Excel Files (always generated)<a id="2-excel-files-always-generated"></a>
 **Filename:** `{prefix}_{resolution}bp.xlsx`
 
 One file per resolution with:
@@ -242,7 +243,7 @@ One file per resolution with:
   - `Inter-AB Score`: Quality metric (numeric value or "N/A" if processing failed)
   - `Confidence`: "High Confidence" if 1.75 ≤ score ≤ 3.20, else "Low Confidence"
 
-#### 3. BED Files (optional, with `--bed`)
+#### 3. BED Files (optional, with `--bed`)<a id="3-bed-files-optional-with---bed"></a>
 **Filename:** `{prefix}_{resolution}bp.bed`
 
 BED9 format with RGB colors:
@@ -259,7 +260,7 @@ chr1    0       300000  A   0   .   0       300000  255,0,0
 chr1    400000  800000  B   0   .   400000  800000  0,0,255
 ```
 
-#### 4. BedGraph Files (optional, with `--bedgraph`)
+#### 4. BedGraph Files (optional, with `--bedgraph`)<a id="4-bedgraph-files-optional-with---bedgraph"></a>
 **Filename:** `{prefix}_{resolution}bp.bedgraph`
 
 Continuous compartment scores for genome browser visualization:
@@ -274,7 +275,7 @@ chr1    0       100000  0.123456
 chr1    100000  200000  -0.098765
 ```
 
-#### 5. Compartment Plots (always generated)
+#### 5. Compartment Plots (always generated)<a id="5-compartment-plots-always-generated"></a>
 **Filename:** `{prefix}_{chr_name}_{resolution}bp.png`
 
 Publication-quality plots (300 DPI) for each chromosome:
@@ -283,7 +284,7 @@ Publication-quality plots (300 DPI) for each chromosome:
 - Automatic unit scaling (bp, Kbp, Mbp)
 - 5 evenly-spaced x-axis ticks
 
-#### 6. Cross-Resolution MCC Plot (if multiple resolutions)
+#### 6. Cross-Resolution MCC Plot (if multiple resolutions)<a id="6-cross-resolution-mcc-plot-if-multiple-resolutions"></a>
 **Filename:** `{prefix}_cross_resolution_mcc.png` and `{prefix}_cross_resolution_mcc_colorbar.png`
 
 Heatmap showing Matthews Correlation Coefficient between resolutions:
@@ -292,7 +293,7 @@ Heatmap showing Matthews Correlation Coefficient between resolutions:
 - Gray cells indicate incompatible resolution pairs (not round multiples)
 - Red-white-blue colormap for MCC values (0-1)
 
-### Troubleshooting CLI
+### Troubleshooting CLI<a id="troubleshooting-cli"></a>
 
 **"Error: Must provide either --load-hdf5 or -f/--hic-file"**
 - Provide at least one input source: `-f` for new .hic file, or `--load-hdf5` for existing results
@@ -314,11 +315,11 @@ Heatmap showing Matthews Correlation Coefficient between resolutions:
 - Use higher resolutions (e.g., 100kb instead of 10kb)
 - Close other applications to free up RAM
 
-## Python API
+## Python API<a id="python-api-1"></a>
 
-### Core Classes
+### Core Classes<a id="core-classes"></a>
 
-#### HiCSCA - Main Pipeline Class
+#### HiCSCA - Main Pipeline Class<a id="hicsca---main-pipeline-class"></a>
 
 Complete pipeline for A-B compartment prediction from Hi-C data.
 
@@ -437,7 +438,7 @@ hicsca_loaded = HiCSCA.from_hdf5("saved_analysis.h5")
 result = hicsca_loaded.results[100000]['chr1']
 ```
 
-### Results Dictionary Structure
+### Results Dictionary Structure<a id="results-dictionary-structure"></a>
 
 Results are stored in: `hicsca.results[resolution][chr_name]`
 
@@ -466,9 +467,9 @@ Each result dictionary contains:
 
 **See RESULTS_STRUCTURE.md for complete documentation.**
 
-### Evaluation Tools
+### Evaluation Tools<a id="evaluation-tools"></a>
 
-#### CrossResolutionAnalyzer
+#### CrossResolutionAnalyzer<a id="crossresolutionanalyzer"></a>
 
 Analyzes agreement between different resolutions within the same Hi-C dataset.
 
@@ -504,7 +505,7 @@ genome_wide_mcc = analyzer.mcc_matrices['all']
 chr1_mcc = analyzer.mcc_matrices['chr1']
 ```
 
-#### CrossDatasetAnalyzer
+#### CrossDatasetAnalyzer<a id="crossdatasetanalyzer"></a>
 
 Analyzes agreement between different Hi-C datasets at the same resolution(s).
 
@@ -543,7 +544,7 @@ fig2, ax2, cbar_fig2, cbar_ax2 = analyzer.plot_orientation_agreement(
 mcc_genome_wide = analyzer.mcc_matrices[100000]['all']
 ```
 
-#### MCCCalculator
+#### MCCCalculator<a id="mcccalculator"></a>
 
 Compute Matthews Correlation Coefficient between compartment predictions.
 
@@ -559,7 +560,7 @@ mcc, tp, fp, tn, fn, zeroed, reversed = MCCCalculator.compute_AB_MCC(
 print(f"MCC: {mcc:.4f}")
 ```
 
-## Testing
+## Testing<a id="testing"></a>
 
 The package includes a comprehensive test suite:
 
@@ -583,28 +584,28 @@ pytest tests/test_hicsca.py::TestRegressionComparison
 
 **Note**: Regression tests require test data files in `tests/test_data/` (ENCFF216ZNY_Intra_Only.hic and reference.h5).
 
-### Test Data
+### Test Data<a id="test-data"></a>
 The test .hic dataset contains only the intra-chromosomal contacts of [ENCFF216ZNY](https://www.encodeproject.org/files/ENCFF216ZNY/). The file is located at [tests/test_data/ENCFF216ZNY_Intra_Only.hic](./tests/test_data/ENCFF216ZNY_Intra_Only.hic)
 
-## Other Documentation
+## Other Documentation<a id="other-documentation"></a>
 
 - **RESULTS_STRUCTURE.md**: Complete documentation of results dictionary structure
 
-## Citation
+## Citation<a id="citation"></a>
 
 If you use this software in your research, please cite:
 
 Chan, J. & Kono, H. HiC-SCA: A Spectral Clustering Method for Reliable A/B Compartment Assignment From Hi-C Data. Preprint at https://doi.org/10.1101/2025.09.22.677711 (2025).
 
-## License
+## License<a id="license"></a>
 
 MIT License
 
-## Contributing
+## Contributing<a id="contributing"></a>
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
-## Acknowledgments
+## Acknowledgments<a id="acknowledgments"></a>
 
 This package uses:
 - [hicstraw](https://github.com/aidenlab/straw) for reading .hic files
