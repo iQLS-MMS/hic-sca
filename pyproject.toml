@@ -48,3 +48,5 @@ Homepage = "https://github.com/iQLS-MMS/hic-sca"
 
 [tool.setuptools]
 packages = ["hicsca",]
+
+[tool.setuptools_scm]
