@@ -1,4 +1,4 @@
-# HiC-SCA: Hi-C Spectral Compartment Analysis
+# HiC-SCA: Hi-C Spectral Compartment Assignment
 
 A Python package for assigning A-B compartments from Hi-C (chromosome conformation capture) data using spectral decomposition
 
