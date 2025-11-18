@@ -1,15 +1,11 @@
 # HiC-SCA: Hi-C Spectral Compartment Analysis
 
-A Python package for predicting A-B chromosomal compartments from Hi-C (chromosome conformation capture) data using spectral decomposition and observed/expected normalization.
-
-## Overview<a id="overview"></a>
-
-HiC-SCA implements a complete pipeline for analyzing Hi-C contact matrices to identify chromatin compartmentalization patterns. It uses spectral decomposition with adaptive tolerance adjustment and an advanced eigenvector selection algorithm to predict A and B chromosomal compartments.
+A Python package for assigning A-B compartments from Hi-C (chromosome conformation capture) data using spectral decomposition
 
 **Key capabilities:**
 - Process .hic files at single or multiple resolutions
-- Automatic genome-wide O/E normalization with smoothing
-- Quality-based eigenvector selection
+- Automatic genome-wide Observed/Expected (O/E) normalization with smoothing
+- Eigenvector selection using Inter-AB score, which quantifies A/B compartment assignment confidence
 - Cross-resolution evaluation to identify suitable resolutions
 - Multiple output formats (HDF5, Excel, BED, BedGraph, plots)
 
@@ -18,7 +14,10 @@ HiC-SCA implements a complete pipeline for analyzing Hi-C contact matrices to id
 - [Installation](#installation)
   - [Requirements](#requirements)
   - [Install from Source](#install-from-source)
+  - [Install from PyPI](#install-from-pypi)
   - [Dependencies](#dependencies)
+  - [Sample/Test Data](#sample-test-data)
+- [Testing](#testing)
 - [Quick Start](#quick-start)
   - [Command-Line Interface](#command-line-interface)
   - [Python API](#python-api)
@@ -26,46 +25,105 @@ HiC-SCA implements a complete pipeline for analyzing Hi-C contact matrices to id
   - [Arguments](#arguments)
   - [Usage Examples](#usage-examples)
   - [Output Files](#output-files)
+    - [1. HDF5 Results File (always generated)](#1-hdf5-results-file-always-generated)
+    - [2. Excel Files (always generated)](#2-excel-files-always-generated)
+    - [3. BED Files (optional, with `--bed`)](#3-bed-files-optional-with---bed)
+    - [4. BedGraph Files (optional, with `--bedgraph`)](#4-bedgraph-files-optional-with---bedgraph)
+    - [5. Compartment Plots (always generated)](#5-compartment-plots-always-generated)
+    - [6. Cross-Resolution MCC Plot (if multiple resolutions)](#6-cross-resolution-mcc-plot-if-multiple-resolutions)
   - [Troubleshooting CLI](#troubleshooting-cli)
 - [Python API](#python-api-1)
   - [Core Classes](#core-classes)
+    - [HiCSCA - Main Pipeline Class](#hicsca---main-pipeline-class)
   - [Results Dictionary Structure](#results-dictionary-structure)
   - [Evaluation Tools](#evaluation-tools)
-- [Testing](#testing)
-  - [Test Data](#test-data)
+    - [CrossResolutionAnalyzer](#crossresolutionanalyzer)
+    - [CrossDatasetAnalyzer](#crossdatasetanalyzer)
+    - [MCCCalculator](#mcccalculator)
 - [Other Documentation](#other-documentation)
 - [Citation](#citation)
+  - [Dependencies](#dependencies-1)
+  - [Sample Data](#sample-data)
+- [Acknowledgments](#acknowledgments)
 - [License](#license)
 - [Contributing](#contributing)
-- [Acknowledgments](#acknowledgments)
 
 ## Installation<a id="installation"></a>
+There are two ways to install HiC-SCA: from [source](#install-from-source) or from [PyPI](#install-from-pypi). The main difference is that installing from source includes the [sample/test Hi-C dataset](#sample-test-data).
 
-### Requirements<a id="requirements"></a>
+**Extra instructions for macOS:**
 
-- Python >= 3.10
-- pip >= 21.0
+If installing on macOS, you will need Xcode. To check if you have Xcode installed, in Terminal, execute `xcode-select -p`. If it returns an error, you need to install Xcode. There are 3 ways to achieve this:
+1. Install Xcode from [Apple Developer](https://developer.apple.com/download/)
+2. Install "Command Line Tools" from [Apple Developer](https://developer.apple.com/download/)
+3. "Command Line Tools" is installed with brew. Install brew by following the instructions at [brew.sh](https://brew.sh/)
+
+**Extra instructions for Windows 11:**
+
+1. HiC-SCA requires the hic-straw package, which contains C++ code that cannot be compiled by the Microsoft MSVC compiler on Windows. To run HiC-SCA on Windows, use WSL2
+2. Instructions for installing WSL 2: https://learn.microsoft.com/en-us/windows/wsl/install
 
 ### Install from Source<a id="install-from-source"></a>
 
-HiC-SCA requires the [h5typer](https://github.com/iQLS-MMS/h5typer) package as a dependency.
+1. Check [Miniforge GitHub page](https://github.com/conda-forge/miniforge) for instructions on how to install Miniforge
 
+2. Create a new environment:
 ```bash
-# Clone repositories
+mamba create -n hicsca python git git-lfs cxx-compiler zlib curl
+```
+
+3. Activate environment:
+```bash
+mamba activate hicsca
+```
+
+4. Install git-lfs hook:
+```bash
+git lfs install
+```
+
+5. Clone repositories:
+```bash
 git clone https://github.com/iQLS-MMS/h5typer.git
 git clone https://github.com/iQLS-MMS/hic-sca.git
+```
 
+6. Install:
+```bash
 # Install h5typer first (required dependency)
 cd h5typer
 pip install .
 
 # Install HiC-SCA
-cd ../hicsca
+cd ../hic-sca
 pip install .
-
-# Or install with test dependencies
-pip install ".[tests]"
 ```
+
+### Install from PyPI<a id="install-from-pypi"></a>
+
+1. Check [Miniforge GitHub page](https://github.com/conda-forge/miniforge) for instructions on how to install Miniforge
+
+2. Create a new environment:
+```bash
+mamba create -n hicsca python cxx-compiler zlib curl
+```
+
+3. Activate environment:
+```bash
+mamba activate hicsca
+```
+
+4. Install HiC-SCA:
+```bash
+pip install hic-sca
+```
+
+**Note:** The PyPI version doesn't include the .hic sample/test data. To run tests or use the sample data, you need to download [ENCFF216ZNY_Intra_Only.hic](https://github.com/iQLS-MMS/hic-sca/blob/main/tests/test_data/ENCFF216ZNY_Intra_Only.hic) directly from GitHub.
+
+### Requirements<a id="requirements"></a>
+
+- Python >= 3.10
+- pip >= 21.0
 
 ### Dependencies<a id="dependencies"></a>
 
@@ -78,6 +136,35 @@ The package automatically installs:
 - openpyxl >= 3.0.0 (Excel I/O)
 - matplotlib >= 3.0.0 (plotting)
 - h5typer >= 0.1.0 (HDF5 type mapping)
+
+### Sample/Test Data<a id="sample-test-data"></a>
+
+The test .hic dataset contains only the intra-chromosomal contacts of [ENCFF216ZNY](https://www.encodeproject.org/files/ENCFF216ZNY/). This dataset is required for running the test suite or can be used as a sample dataset for trying out HiC-SCA.
+
+**For source installations:**
+The file is included at `hic-sca/tests/test_data/ENCFF216ZNY_Intra_Only.hic`
+
+**For PyPI installations:**
+Download [ENCFF216ZNY_Intra_Only.hic](https://github.com/iQLS-MMS/hic-sca/blob/main/tests/test_data/ENCFF216ZNY_Intra_Only.hic) directly from GitHub.
+
+## Testing<a id="testing"></a>
+
+To run the test suite, first install HiC-SCA with test dependencies:
+
+```bash
+# Install from source
+pip install ".[tests]"
+
+# Install from PyPI
+pip install "hic-sca[tests]"
+```
+
+Then run the tests from the hic-sca folder with:
+```bash
+pytest tests/
+```
+
+**Note**: The test suite requires the sample/test .hic data file to be located in `tests/test_data`. See the [Sample/Test Data](#sample-test-data) section for details.
 
 ## Quick Start<a id="quick-start"></a>
 
@@ -102,16 +189,20 @@ hic-sca -f hic-sca/tests/test_data/ENCFF216ZNY_Intra_Only.hic -p my_sample -v
 hic-sca -f hic-sca/tests/test_data/ENCFF216ZNY_Intra_Only.hic -r 100000 -p my_sample -o results/
 
 # Process specific chromosomes
+# WARNING: The background distribution used to compute the O/E Hi-C
+#          contact maps will only include the specific chromosomes
 hic-sca -f hic-sca/tests/test_data/ENCFF216ZNY_Intra_Only.hic -r 100000 -c chr1 chr2 chr3 -p my_sample
 ```
 
 **Output files:**
 - `my_sample_results.h5` - HDF5 file with complete results
 - `my_sample_100000bp.xlsx` - Excel file (mandatory)
-- `my_sample_100000bp.bed` - BED file (if `--bed` specified)
+- `my_sample_100000bp.bed` - BED file (if `--bed` specified) 
 - `my_sample_100000bp.bedgraph` - BedGraph file (if `--bedgraph` specified)
 - `my_sample_chr1_100000bp.png` - Compartment plot for chr1
 - `my_sample_cross_resolution_mcc.png` - Cross-resolution MCC heatmap (if multiple resolutions)
+
+The BED and bedGraph output files can be visualized on the [UCSC Genome Browser](https://genome.ucsc.edu/) as Custom Tracks. Ensure the correct genome assembly is selected (the sample data uses human GRCh38/hg38).
 
 ### Python API<a id="python-api"></a>
 
@@ -188,7 +279,7 @@ hic-sca -f data.hic -r 100000 -p my_sample -o results/
 # Specific chromosomes
 hic-sca -f data.hic -r 100000 -c chr1 chr2 chr3 -p my_sample
 
-# Use pre-normalized O/E data (skip background normalization)
+# Use pre-normalized O/E data from the .hic file (skip background normalization)
 hic-sca -f data.hic -r 100000 -p my_sample -t oe
 
 # Load existing HDF5 and export to BED/BedGraph
@@ -212,7 +303,7 @@ Complete analysis results for all resolutions and chromosomes:
 - All compartment predictions
 - Pre-computed background normalizations (for fast reloading)
 - Eigendecomposition results
-- Quality control metrics
+- Inter-AB score
 - Self-contained: stores chromosome lengths, no .hic file path stored
 - Can be loaded with or without .hic file for export or further processing
 
@@ -241,7 +332,7 @@ One file per resolution with:
 - **Summary worksheet "Inter-AB Scores"** containing:
   - `Chromosome`: Chromosome name
   - `Inter-AB Score`: Quality metric (numeric value or "N/A" if processing failed)
-  - `Confidence`: "High Confidence" if 1.75 ≤ score ≤ 3.20, else "Low Confidence"
+  - `Confidence`: "High" if 1.75 ≤ score ≤ 3.20, else "Low"
 
 #### 3. BED Files (optional, with `--bed`)<a id="3-bed-files-optional-with---bed"></a>
 **Filename:** `{prefix}_{resolution}bp.bed`
@@ -281,8 +372,6 @@ chr1    100000  200000  -0.098765
 Publication-quality plots (300 DPI) for each chromosome:
 - Red line: A compartment (positive values)
 - Blue line: B compartment (negative values)
-- Automatic unit scaling (bp, Kbp, Mbp)
-- 5 evenly-spaced x-axis ticks
 
 #### 6. Cross-Resolution MCC Plot (if multiple resolutions)<a id="6-cross-resolution-mcc-plot-if-multiple-resolutions"></a>
 **Filename:** `{prefix}_cross_resolution_mcc.png` and `{prefix}_cross_resolution_mcc_colorbar.png`
@@ -329,7 +418,7 @@ from hicsca import HiCSCA
 
 hicsca = HiCSCA(
     hic_file_path="data/sample.hic",
-    chr_names=None,  # None = all autosomal chromosomes (chr1-chr22)
+    chr_names=None,  # None = all autosomal chromosomes
     resolutions=None,  # None = all available resolutions
     data_type="observed",  # "observed" or "oe"
     norm_type="NONE",
@@ -560,42 +649,42 @@ mcc, tp, fp, tn, fn, zeroed, reversed = MCCCalculator.compute_AB_MCC(
 print(f"MCC: {mcc:.4f}")
 ```
 
-## Testing<a id="testing"></a>
-
-The package includes a comprehensive test suite:
-
-```bash
-# Run all tests (including regression tests)
-pytest tests/
-
-# Run with coverage
-pytest tests/ --cov=hicsca --cov-report=html
-
-# Specific test classes
-pytest tests/test_hicsca.py::TestResultStructure
-pytest tests/test_hicsca.py::TestRegressionComparison
-```
-
-**Test Coverage:**
-- Data availability checks
-- Result structure validation
-- Regression tests (compartment vectors, scores, eigenvalues)
-- Cross-resolution analysis validation
-
-**Note**: Regression tests require test data files in `tests/test_data/` (ENCFF216ZNY_Intra_Only.hic and reference.h5).
-
-### Test Data<a id="test-data"></a>
-The test .hic dataset contains only the intra-chromosomal contacts of [ENCFF216ZNY](https://www.encodeproject.org/files/ENCFF216ZNY/). The file is located at [tests/test_data/ENCFF216ZNY_Intra_Only.hic](./tests/test_data/ENCFF216ZNY_Intra_Only.hic)
-
 ## Other Documentation<a id="other-documentation"></a>
 
-- **RESULTS_STRUCTURE.md**: Complete documentation of results dictionary structure
+- **[RESULTS_STRUCTURE.md](RESULTS_STRUCTURE.md)**: Complete documentation of results dictionary structure
 
 ## Citation<a id="citation"></a>
 
 If you use this software in your research, please cite:
 
-Chan, J. & Kono, H. HiC-SCA: A Spectral Clustering Method for Reliable A/B Compartment Assignment From Hi-C Data. Preprint at https://doi.org/10.1101/2025.09.22.677711 (2025).
+Chan, J. & Kono, H. HiC-SCA: A Spectral Clustering Method for Reliable A/B Compartment Assignment From Hi-C Data. *Preprint* at https://doi.org/10.1101/2025.09.22.677711 (2025).
+
+### Dependencies<a id="dependencies-1"></a>
+
+Our package uses [hicstraw](https://github.com/aidenlab/straw):
+
+Durand, N.C., Robinson, J.T., Shamim, M.S., Machol, I., Mesirov, J.P., Lander, E.S., and Aiden, E.L. (2016). Juicebox Provides a Visualization System for Hi-C Contact Maps with Unlimited Zoom. *Cell Systems* 3, 99–101. https://doi.org/10.1016/j.cels.2015.07.012.
+
+LOBPCG algorithm (SciPy) for efficient eigen-decomposition:
+
+Knyazev, A.V., Argentati, M.E., Lashuk, I., and Ovtchinnikov, E.E. (2007). Block Locally Optimal Preconditioned Eigenvalue Xolvers (BLOPEX) in hypre and PETSc. https://doi.org/10.48550/ARXIV.0705.2626.
+
+### Sample Data<a id="sample-data"></a>
+
+Sample data from:
+
+Rao, S.S.P., Huntley, M.H., Durand, N.C., Stamenova, E.K., Bochkov, I.D., Robinson, J.T., Sanborn, A.L., Machol, I., Omer, A.D., Lander, E.S., et al. (2014). A 3D Map of the Human Genome at Kilobase Resolution Reveals Principles of Chromatin Looping. *Cell* 159, 1665–1680. https://doi.org/10.1016/j.cell.2014.11.021.
+
+Obtained from the [ENCODE database](https://www.encodeproject.org/):
+
+Luo, Y., Hitz, B.C., Gabdank, I., Hilton, J.A., Kagda, M.S., Lam, B., Myers, Z., Sud, P., Jou, J., Lin, K., et al. (2020). New developments on the Encyclopedia of DNA Elements (ENCODE) data portal. *Nucleic Acids Research* 48, D882–D889. https://doi.org/10.1093/nar/gkz1062.
+
+## Acknowledgments<a id="acknowledgments"></a>
+
+This package uses:
+- [NumPy](https://numpy.org/) and [SciPy](https://scipy.org/) for numerical computations and sparse matrix operations
+- [matplotlib](https://matplotlib.org/) for visualization
+- [h5py](https://www.h5py.org/) for HDF5 file I/O
 
 ## License<a id="license"></a>
 
@@ -605,12 +694,3 @@ MIT License
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
-## Acknowledgments<a id="acknowledgments"></a>
-
-This package uses:
-- [hicstraw](https://github.com/aidenlab/straw) for reading .hic files
-- NumPy and SciPy for numerical computations and sparse matrix operations
-- matplotlib for visualization
-- h5py for HDF5 file I/O
-- h5typer for automatic HDF5 type mapping
-- LOBPCG algorithm (SciPy) for efficient eigenvalue decomposition
