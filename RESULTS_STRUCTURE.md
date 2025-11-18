@@ -117,10 +117,9 @@ if result['Success']:
     # Eigenvalue spectrum
     print(f"Trivial eigenvalue: {eigvals[0]:.6f}")
     print(f"Selected eigenvalue (Eig{selected_eig}): {eigvals[selected_eig]:.6f}")
-    print(f"Eigenvalue gap: {eigvals[1] - eigvals[2]:.6f}")
 ```
 
-### Reconstructing Full Compartment Vector
+### The Full Compartment Vector
 
 ```python
 result = hicsca.results[100000]["chr1"]
@@ -129,13 +128,6 @@ if result['Success']:
     # The assigned_AB_compartment already includes all bins
     # (included bins have compartment values, excluded bins are zero)
     full_compartments = result['assigned_AB_compartment']
-
-    # Verify it matches include_bool
-    assert (full_compartments != 0).sum() == result['include_bool'].sum()
-
-    # Get only the non-zero compartment values
-    included_idx = np.nonzero(result['include_bool'])[0]
-    compartment_values = full_compartments[included_idx]
 ```
 
 ## Multi-Sample/Multi-Resolution Structure
@@ -189,15 +181,4 @@ When eigendecomposition succeeds but no valid eigenvector is found:
 
 1. **Array Lengths**:
    - `assigned_AB_compartment`, `include_bool`, `non_zero_not_included_bool`: Length = total number of bins
-   - `eigvects`, `deg`, `OE_normed_diag`: Length = number of included bins
-
-2. **Normalization**:
-   - `assigned_AB_compartment` is L2-normalized
-   - Eigenvectors in `eigvects` are also normalized
-
-3. **Orientation**:
-   - The sign of `assigned_AB_compartment` is set such that bins with higher O/E diagonal values (typically A compartment) have positive values
-
-4. **Memory Considerations**:
-   - Large matrices like eigenvectors can consume significant memory
-   - Consider deleting results for unused resolutions/chromosomes if memory is limited
+   - `eigvects`, `deg`, `OE_normed_diag`: Length = number of included bins after filtering

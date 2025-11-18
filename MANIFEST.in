@@ -1,1 +1,1 @@
-prune tests
+prune tests/test_data
