@@ -149,22 +149,17 @@ Download [ENCFF216ZNY_Intra_Only.hic](https://github.com/iQLS-MMS/hic-sca/blob/m
 
 ## Testing<a id="testing"></a>
 
-To run the test suite, first install HiC-SCA with test dependencies:
+To run the test suite, you must install HiC-SCA from source with test dependencies:
 
 ```bash
 # Install from source
 pip install ".[tests]"
-
-# Install from PyPI
-pip install "hic-sca[tests]"
 ```
 
 Then run the tests from the hic-sca folder with:
 ```bash
 pytest tests/
 ```
-
-**Note**: The test suite requires the sample/test .hic data file to be located in `tests/test_data`. See the [Sample/Test Data](#sample-test-data) section for details.
 
 ## Quick Start<a id="quick-start"></a>
 
