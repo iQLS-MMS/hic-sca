@@ -12,9 +12,9 @@ A Python package for assigning A-B compartments from Hi-C (chromosome conformati
 ## Table of Contents
 
 - [Installation](#installation)
-  - [Requirements](#requirements)
   - [Install from Source](#install-from-source)
   - [Install from PyPI](#install-from-pypi)
+  - [Requirements](#requirements)
   - [Dependencies](#dependencies)
   - [Sample/Test Data](#sample-test-data)
 - [Testing](#testing)
@@ -49,7 +49,9 @@ A Python package for assigning A-B compartments from Hi-C (chromosome conformati
 - [Contributing](#contributing)
 
 ## Installation<a id="installation"></a>
-There are two ways to install HiC-SCA: from [source](#install-from-source) or from [PyPI](#install-from-pypi). The main difference is that installing from source includes the [sample/test Hi-C dataset](#sample-test-data).
+There are two ways to install HiC-SCA: from [source](#install-from-source) or from [PyPI](#install-from-pypi).
+
+**Note:** Sample/test Hi-C data must be downloaded separately from [figshare](https://figshare.com/s/7a857f697923bf1b50d6). See [Sample/Test Data](#sample-test-data) section for details.
 
 **Extra instructions for macOS:**
 
@@ -59,9 +61,7 @@ If installing on macOS, you will need Xcode. To check if you have Xcode installe
 3. "Command Line Tools" is installed with brew. Install brew by following the instructions at [brew.sh](https://brew.sh/)
 
 **Extra instructions for Windows 11:**
-
-1. HiC-SCA requires the hic-straw package, which contains C++ code that cannot be compiled by the Microsoft MSVC compiler on Windows. To run HiC-SCA on Windows, use WSL2
-2. Instructions for installing WSL 2: https://learn.microsoft.com/en-us/windows/wsl/install
+HiC-SCA requires the hic-straw package, which contains C++ code that cannot be compiled by the Microsoft MSVC compiler on Windows. To run HiC-SCA on Windows, use WSL2. Instructions for installing WSL 2: https://learn.microsoft.com/en-us/windows/wsl/install
 
 ### Install from Source<a id="install-from-source"></a>
 
@@ -69,7 +69,7 @@ If installing on macOS, you will need Xcode. To check if you have Xcode installe
 
 2. Create a new environment:
 ```bash
-mamba create -n hicsca python git git-lfs cxx-compiler zlib curl
+mamba create -n hicsca python git cxx-compiler zlib curl
 ```
 
 3. Activate environment:
@@ -77,18 +77,13 @@ mamba create -n hicsca python git git-lfs cxx-compiler zlib curl
 mamba activate hicsca
 ```
 
-4. Install git-lfs hook:
-```bash
-git lfs install
-```
-
-5. Clone repositories:
+4. Clone repositories:
 ```bash
 git clone https://github.com/iQLS-MMS/h5typer.git
 git clone https://github.com/iQLS-MMS/hic-sca.git
 ```
 
-6. Install:
+5. Install:
 ```bash
 # Install h5typer first (required dependency)
 cd h5typer
@@ -118,8 +113,6 @@ mamba activate hicsca
 pip install hic-sca
 ```
 
-**Note:** The PyPI version doesn't include the .hic sample/test data. To run tests or use the sample data, you need to download [ENCFF216ZNY_Intra_Only.hic](https://github.com/iQLS-MMS/hic-sca/blob/main/tests/test_data/ENCFF216ZNY_Intra_Only.hic) directly from GitHub.
-
 ### Requirements<a id="requirements"></a>
 
 - Python >= 3.10
@@ -139,15 +132,19 @@ The package automatically installs:
 
 ### Sample/Test Data<a id="sample-test-data"></a>
 
-The test .hic dataset contains only the intra-chromosomal contacts of [ENCFF216ZNY](https://www.encodeproject.org/files/ENCFF216ZNY/). This dataset is required for running the test suite or can be used as a sample dataset for trying out HiC-SCA.
+The test .hic dataset contains only the intra-chromosomal contacts of [ENCFF216ZNY](https://www.encodeproject.org/files/ENCFF216ZNY/). This dataset is required for running the test suite and can also be used as a sample dataset for trying out HiC-SCA.
 
-**For source installations:**
-The file is included at `hic-sca/tests/test_data/ENCFF216ZNY_Intra_Only.hic`
+**Download:** The dataset is NOT included in the repository or PyPI package. Download `ENCFF216ZNY_Intra_Only.hic` (~479 MB) from [figshare](https://figshare.com/s/7a857f697923bf1b50d6).
 
-**For PyPI installations:**
-Download [ENCFF216ZNY_Intra_Only.hic](https://github.com/iQLS-MMS/hic-sca/blob/main/tests/test_data/ENCFF216ZNY_Intra_Only.hic) directly from GitHub.
+**File placement:**
+- **For running tests:** Place the downloaded file at `tests/test_data/ENCFF216ZNY_Intra_Only.hic` (relative to the repository root)
+- **For general usage:** You can place the file anywhere and reference it with the appropriate path in your commands
 
 ## Testing<a id="testing"></a>
+
+**Prerequisites:**
+1. Download the test data file `ENCFF216ZNY_Intra_Only.hic` from [figshare](https://figshare.com/s/7a857f697923bf1b50d6)
+2. Place it at `tests/test_data/ENCFF216ZNY_Intra_Only.hic` (relative to the repository root)
 
 To run the test suite, you must install HiC-SCA from source with test dependencies:
 
@@ -156,7 +153,7 @@ To run the test suite, you must install HiC-SCA from source with test dependenci
 pip install ".[tests]"
 ```
 
-Then run the tests from the hic-sca folder with:
+Then run the tests from the repository root folder with:
 ```bash
 pytest tests/
 ```
@@ -197,7 +194,7 @@ hic-sca -f hic-sca/tests/test_data/ENCFF216ZNY_Intra_Only.hic -r 100000 -c chr1 
 - `my_sample_chr1_100000bp.png` - Compartment plot for chr1
 - `my_sample_cross_resolution_mcc.png` - Cross-resolution MCC heatmap (if multiple resolutions)
 
-The BED and bedGraph output files can be visualized on the [UCSC Genome Browser](https://genome.ucsc.edu/) as Custom Tracks. Ensure the correct genome assembly is selected (the sample data uses human GRCh38/hg38).
+The BED and bedGraph output files can be visualized on the [UCSC Genome Browser](https://genome.ucsc.edu/) as Custom Tracks. Ensure the correct genome assembly is selected (the sample data is mapped to the human GRCh38/hg38 assembly).
 
 ### Python API<a id="python-api"></a>
 

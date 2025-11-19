@@ -1,18 +1,12 @@
 # HiC-SCA Test Suite
 
 This directory contains the test suite for the HiC-SCA package.
-Please run all commands in the parent "hicsca" folder
+Please run all commands in the parent "hic-sca" folder
 
 ## Setup
 
-### 1. Install Test Dependencies
-
-Install the hic-sca package with test dependencies:
-```bash
-pip install -e ".[tests]"
-```
-
-This installs pytest and other testing tools required for running the test suite.
+### Install Test Dependencies
+See main [README.md](../README.md)
 
 ## Running Tests
 
@@ -36,14 +30,6 @@ pytest tests/test_hic_sca.py::TestResultStructure
 ```bash
 pytest tests/ -v
 ```
-
-### Run with Coverage Report
-
-```bash
-pytest tests/ --cov=hic_sca --cov-report=html
-```
-
-Then open `htmlcov/index.html` in a browser to view the coverage report.
 
 ## Test Structure
 
@@ -82,16 +68,3 @@ Loads ref.h5 once per test session and caches it.
 Runs HiC-SCA on test.hic once per test session and caches results.
 
 Session-scoped fixtures ensure expensive operations (loading data, running HiC-SCA) only happen once per test run.
-
-## Test Markers
-
-The test suite uses pytest markers to categorize tests:
-- `@pytest.mark.slow` - Tests that take significant time to run (regression tests)
-
-## Contributing
-
-When adding new features to HiC-SCA:
-1. Add corresponding tests to `test_hic_sca.py`
-2. Ensure all existing tests still pass
-3. Add test markers (`@pytest.mark.slow`) for expensive tests
-4. Update this README if adding new test categories
