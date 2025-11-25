@@ -86,7 +86,7 @@ HiC-SCA requires the hic-straw package, which contains C++ code that cannot be c
 
 2. Create a new environment:
 ```bash
-mamba create -n hicsca python git cxx-compiler zlib curl
+mamba create -n hicsca python git cxx-compiler zlib curl hdf5
 ```
 
 3. Activate environment:
@@ -117,7 +117,7 @@ pip install .
 
 2. Create a new environment:
 ```bash
-mamba create -n hicsca python cxx-compiler zlib curl
+mamba create -n hicsca python cxx-compiler zlib curl hdf5
 ```
 
 3. Activate environment:
