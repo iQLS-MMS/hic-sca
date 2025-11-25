@@ -11,12 +11,14 @@ A Python package for assigning A-B compartments from Hi-C (chromosome conformati
 
 ## Table of Contents
 
+- [OS Requirements](#requirements)
 - [Installation](#installation)
   - [Install from Source](#install-from-source)
   - [Install from PyPI](#install-from-pypi)
   - [Requirements](#requirements)
   - [Dependencies](#dependencies)
   - [Sample/Test Data](#sample-test-data)
+- [Demo](#demo)
 - [Testing](#testing)
 - [Quick Start](#quick-start)
   - [Command-Line Interface](#command-line-interface)
@@ -48,8 +50,23 @@ A Python package for assigning A-B compartments from Hi-C (chromosome conformati
 - [License](#license)
 - [Contributing](#contributing)
 
+## OS Requirements<a id="requirements"></a>
+**Supported platforms:**
+- Linux (x86_64)
+- macOS
+- Windows 11 via WSL/WSL2
+
+**Tested environments:**
+| OS | Version | Architecture |
+|---|---|---|
+| Ubuntu (WSL2) | 22.04 | x86_64 |
+| macOS | 15 (Sequoia) | M2 |
+| CentOS | 7.9 | x86_64 |
+
 ## Installation<a id="installation"></a>
 There are two ways to install HiC-SCA: from [source](#install-from-source) or from [PyPI](#install-from-pypi).
+
+**Note:** Installation of HiC-SCA takes a few minutes but could take a lot longer if running on older Linux distros which requires compiling dependencies. This estimate excludes installing Xcode (macOS) or WSL2 (Windows)
 
 **Note:** Sample/test Hi-C data must be downloaded separately from [figshare](https://figshare.com/s/7a857f697923bf1b50d6). See [Sample/Test Data](#sample-test-data) section for details.
 
@@ -140,7 +157,24 @@ The test .hic dataset contains only the intra-chromosomal contacts of [ENCFF216Z
 - **For running tests:** Place the downloaded file at `tests/test_data/ENCFF216ZNY_Intra_Only.hic` (relative to the repository root)
 - **For general usage:** You can place the file anywhere and reference it with the appropriate path in your commands
 
+## Demo<a id="demo"></a>
+
+The `examples/` folder contains sample output files from processing the test dataset:
+
+```bash
+hic-sca -f tests/test_data/ENCFF216ZNY_Intra_Only.hic -r 100000 -p my_sample
+```
+
+**Output files included:**
+- `my_sample_results.h5` - HDF5 file with complete analysis results
+- `my_sample_100000bp.xlsx` - Excel file with compartment predictions and Inter-AB scores
+- `my_sample_chr{1-22}_100000bp.png` - Compartment plots for all autosomal chromosomes at 100kb resolution
+
+Processing takes <5 minutes on an Intel Core i7-9700 CPU on Windows 11 WSL2 - Ubuntu 22.04.
+
 ## Testing<a id="testing"></a>
+
+The test suite is an automated test that compares computed results against reference data to ensure consistency across different environments
 
 **Prerequisites:**
 1. Download the test data file `ENCFF216ZNY_Intra_Only.hic` from [figshare](https://figshare.com/s/7a857f697923bf1b50d6)
@@ -166,24 +200,24 @@ The easiest way to use HiC-SCA is through the command-line interface:
 
 ```bash
 # Process single resolution
-hic-sca -f hic-sca/tests/test_data/ENCFF216ZNY_Intra_Only.hic -r 100000 -p my_sample
+hic-sca -f tests/test_data/ENCFF216ZNY_Intra_Only.hic -r 100000 -p my_sample
 
 # Process with BED and BedGraph output
-hic-sca -f hic-sca/tests/test_data/ENCFF216ZNY_Intra_Only.hic -r 100000 -p my_sample --bed --bedgraph
+hic-sca -f tests/test_data/ENCFF216ZNY_Intra_Only.hic -r 100000 -p my_sample --bed --bedgraph
 
 # Process multiple resolutions
-hic-sca -f hic-sca/tests/test_data/ENCFF216ZNY_Intra_Only.hic -r 100000 50000 25000 -p my_sample
+hic-sca -f tests/test_data/ENCFF216ZNY_Intra_Only.hic -r 100000 50000 25000 -p my_sample
 
 # Process all available resolutions with verbose output
-hic-sca -f hic-sca/tests/test_data/ENCFF216ZNY_Intra_Only.hic -p my_sample -v
+hic-sca -f tests/test_data/ENCFF216ZNY_Intra_Only.hic -p my_sample -v
 
 # Specify output directory
-hic-sca -f hic-sca/tests/test_data/ENCFF216ZNY_Intra_Only.hic -r 100000 -p my_sample -o results/
+hic-sca -f tests/test_data/ENCFF216ZNY_Intra_Only.hic -r 100000 -p my_sample -o results/
 
 # Process specific chromosomes
 # WARNING: The background distribution used to compute the O/E Hi-C
 #          contact maps will only include the specific chromosomes
-hic-sca -f hic-sca/tests/test_data/ENCFF216ZNY_Intra_Only.hic -r 100000 -c chr1 chr2 chr3 -p my_sample
+hic-sca -f tests/test_data/ENCFF216ZNY_Intra_Only.hic -r 100000 -c chr1 chr2 chr3 -p my_sample
 ```
 
 **Output files:**
@@ -203,7 +237,7 @@ from hicsca import HiCSCA
 
 # Initialize pipeline with Hi-C file
 hicsca = HiCSCA(
-    hic_file_path="hic-sca/tests/test_data/ENCFF216ZNY_Intra_Only.hic",
+    hic_file_path="tests/test_data/ENCFF216ZNY_Intra_Only.hic",
     resolutions=[100000],  # or None for auto-detect all
     chr_names=None  # None = all autosomal chromosomes
 )
