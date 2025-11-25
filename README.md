@@ -68,7 +68,7 @@ There are two ways to install HiC-SCA: from [source](#install-from-source) or fr
 
 **Note:** Installation of HiC-SCA takes a few minutes but could take a lot longer if running on older Linux distros which requires compiling dependencies. This estimate excludes installing Xcode (macOS) or WSL2 (Windows)
 
-**Note:** Sample/test Hi-C data must be downloaded separately from [figshare](https://figshare.com/s/7a857f697923bf1b50d6). See [Sample/Test Data](#sample-test-data) section for details.
+**Note:** Sample/test Hi-C data must be downloaded separately from [figshare](https://figshare.com/s/7a857f697923bf1b50d6). See [Sample/Test Data](#sample-test-data) section for details. Also the reference **examples** folder for comparison in the [Demo](#demo) section can only be obtained by installing from source
 
 **Extra instructions for macOS:**
 
@@ -86,7 +86,7 @@ HiC-SCA requires the hic-straw package, which contains C++ code that cannot be c
 
 2. Create a new environment:
 ```bash
-mamba create -n hicsca python git cxx-compiler zlib curl hdf5
+mamba create -n hicsca python git cxx-compiler zlib curl
 ```
 
 3. Activate environment:
@@ -117,7 +117,7 @@ pip install .
 
 2. Create a new environment:
 ```bash
-mamba create -n hicsca python cxx-compiler zlib curl hdf5
+mamba create -n hicsca python cxx-compiler zlib curl
 ```
 
 3. Activate environment:
