@@ -247,6 +247,7 @@ def save_to_hdf5(hicsca_inst,
             'data_type': hicsca_inst.data_type,
             'norm_type': hicsca_inst.norm_type,
             'smoothing_cutoff': hicsca_inst.smoothing_cutoff,
+            'min_nonzero_inter_AB_contacts': hicsca_inst.min_nonzero_inter_AB_contacts,
             'chr_length_dict': hicsca_inst.chr_length_dict
         }
     }

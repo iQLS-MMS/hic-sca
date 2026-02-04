@@ -707,7 +707,7 @@ class InterABScoreCalculator:
     @staticmethod
     def calculate_inter_AB_score(eigvect: np.ndarray,
                                 eigval: float,
-                                OE_normed_mat: sp.csr_matrix) -> float:
+                                OE_normed_mat: sp.csr_matrix) -> Tuple[float, int]:
         """
         Calculate the inter-AB compartment contact score.
 
@@ -722,8 +722,10 @@ class InterABScoreCalculator:
 
         Returns
         -------
-        float
-            Inter-AB score normalized by eigenvalue
+        tuple
+            (inter_AB_score, num_nonzero_inter_AB_contacts)
+            - inter_AB_score: Inter-AB score normalized by eigenvalue
+            - num_nonzero_inter_AB_contacts: Number of non-zero inter-AB contacts
         """
         # Normalize eigenvector by column sums
         deg = np.asarray(OE_normed_mat.sum(axis=0)).flatten()
@@ -739,7 +741,7 @@ class InterABScoreCalculator:
 
         # Return 0 if either compartment is empty
         if (compartment_bools[0].sum() == 0) or (compartment_bools[1].sum() == 0):
-            return 0.0
+            return 0.0, 0
 
         compartments = [
             normed_eigvect[compartment_bools[0]],
@@ -750,6 +752,9 @@ class InterABScoreCalculator:
         edge_weights_coo = OE_normed_mat[
             compartment_bools[0], :
         ][:, compartment_bools[1]].tocoo()
+
+        # Count non-zero inter-AB contacts (excluding explicit zeros)
+        num_nonzero_inter_AB_contacts = edge_weights_coo.count_nonzero()
 
         inter_AB_abs = (
             (compartments[0][edge_weights_coo.row] -
@@ -762,7 +767,7 @@ class InterABScoreCalculator:
         # Normalize by eigenvalue
         inter_AB_score = raw_inter_AB_score / normed_eigval
 
-        return inter_AB_score
+        return inter_AB_score, num_nonzero_inter_AB_contacts
 
 
 class CompartmentAssigner:
@@ -813,7 +818,8 @@ class CompartmentAssigner:
     def select_eigenvector(OE_normed_mat_nonzero: sp.csr_matrix,
                           eigvals: np.ndarray,
                           eigenvects: np.ndarray,
-                          num_components: int = 10) -> Tuple[int, float, float]:
+                          num_components: int = 10,
+                          min_nonzero_inter_AB_contacts: int = 0) -> Tuple[int, float, float]:
         """
         Select the best eigenvector for compartment prediction.
 
@@ -830,6 +836,10 @@ class CompartmentAssigner:
             Eigenvectors from decomposition (as rows)
         num_components : int, optional
             Number of eigenvectors to evaluate (default: 10)
+        min_nonzero_inter_AB_contacts : int, optional
+            Minimum required number of non-zero inter-AB contacts. Eigenvectors
+            with non-zero inter-AB contacts less than or equal to this value
+            will be skipped (default: 0, which effectively disables filtering)
 
         Returns
         -------
@@ -845,12 +855,16 @@ class CompartmentAssigner:
         # Evaluate the 2nd eigenvectors through num_components+1 (0-indexed)
         for idx in range(1, num_components + 1):
             # Calculate inter-AB score using InterABScoreCalculator
-            inter_AB_score = InterABScoreCalculator.calculate_inter_AB_score(
+            inter_AB_score, num_nonzero_inter_AB_contacts = InterABScoreCalculator.calculate_inter_AB_score(
                 eigenvects[idx], eigvals[idx], OE_normed_mat_nonzero
             )
 
             # Skip if score is 0 (indicates empty compartment)
             if inter_AB_score == 0.0:
+                continue
+
+            # Skip if number of non-zero inter-AB contacts is at or below cutoff
+            if num_nonzero_inter_AB_contacts <= min_nonzero_inter_AB_contacts:
                 continue
 
             # Further weight by relative eigenvalue significance (modified score)
@@ -878,7 +892,8 @@ class HiCSCA:
                  chr_length_dict: Optional[Dict[str, int]] = None,
                  data_type: str = "observed",
                  norm_type: str = "NONE",
-                 smoothing_cutoff: int = 400):
+                 smoothing_cutoff: int = 400,
+                 min_nonzero_inter_AB_contacts: int = 0):
         """
         Initialize the HiC-SCA pipeline.
 
@@ -904,6 +919,10 @@ class HiCSCA:
         smoothing_cutoff : int, optional
             Cutoff threshold for smoothing background contacts (default: 400).
             Only used when data_type is "observed".
+        min_nonzero_inter_AB_contacts : int, optional
+            Minimum required number of non-zero inter-AB contacts for eigenvector selection.
+            Eigenvectors with non-zero inter-AB contacts less than or equal to this value
+            will be skipped during compartment assignment (default: 0, which disables filtering).
 
         Raises
         ------
@@ -958,6 +977,7 @@ class HiCSCA:
         self.data_type = data_type
         self.norm_type = norm_type
         self.smoothing_cutoff = smoothing_cutoff
+        self.min_nonzero_inter_AB_contacts = min_nonzero_inter_AB_contacts
         self.normalizers = {}  # Resolution -> BackgroundNormalizer
         self._background_computed = set()  # Track which resolutions have background computed
         self.results = {}  # Store all results: {resolution: {chr_name: result_dict}}
@@ -1005,24 +1025,14 @@ class HiCSCA:
         normalizers_data = loaded_data['normalizers']
         metadata = loaded_data['metadata']
 
-        # Extract metadata
-        chr_names = metadata['chr_names']
-        resolutions = metadata['resolutions']
-        chr_length_dict = metadata['chr_length_dict']
-        data_type = metadata['data_type']
-        norm_type = metadata['norm_type']
-        smoothing_cutoff = metadata['smoothing_cutoff']
+        # Create initialization parameters from metadata
+        # Start with hic_file_path, then add all metadata
+        # Missing optional params will use __init__ defaults
+        init_params = {'hic_file_path': hic_file_path}
+        init_params.update(metadata)
 
         # Create new HiCSCA instance
-        instance = cls(
-            hic_file_path=hic_file_path,
-            chr_names=chr_names,
-            resolutions=resolutions,
-            chr_length_dict=chr_length_dict,
-            data_type=data_type,
-            norm_type=norm_type,
-            smoothing_cutoff=smoothing_cutoff
-        )
+        instance = cls(**init_params)
 
         # Restore results
         instance.results = results
@@ -1223,7 +1233,8 @@ class HiCSCA:
             # Select best eigenvector
             assigner = CompartmentAssigner()
             selected_eig_idx, modified_inter_eigval_score, unmodified_inter_AB_score = assigner.select_eigenvector(
-                OE_normed_mat_nonzero, eigvals, eigenvects, num_components=10
+                OE_normed_mat_nonzero, eigvals, eigenvects, num_components=10,
+                min_nonzero_inter_AB_contacts=self.min_nonzero_inter_AB_contacts
             )
 
             del OE_normed_mat_nonzero
