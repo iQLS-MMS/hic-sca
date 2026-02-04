@@ -448,7 +448,8 @@ hicsca = HiCSCA(
     resolutions=None,  # None = all available resolutions
     data_type="observed",  # "observed" or "oe"
     norm_type="NONE",
-    smoothing_cutoff=400
+    smoothing_cutoff=400,
+    min_nonzero_inter_AB_contacts=0  # Filter eigenvectors by inter-AB contacts
 )
 ```
 
@@ -459,6 +460,7 @@ hicsca = HiCSCA(
 - `data_type` (str): "observed" (raw contacts with O/E normalization) or "oe" (pre-normalized, skip O/E)
 - `norm_type` (str): Normalization type for hicstraw (default: "NONE")
 - `smoothing_cutoff` (int): Smoothing parameter for O/E normalization (default: 400, only used when data_type="observed")
+- `min_nonzero_inter_AB_contacts` (int): Minimum required number of non-zero inter-AB contacts for eigenvector selection. Eigenvectors with non-zero inter-AB contacts less than or equal to this value will be skipped during compartment assignment (default: 0, which disables filtering)
 
 **Key Methods:**
 ```python
