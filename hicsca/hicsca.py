@@ -98,6 +98,8 @@ class HiCDataLoader:
         """
         Load a sparse contact map for a specific chromosome at a given resolution.
 
+        WARNING: This returns an upper-triangular matrix
+
         Parameters
         ----------
         chr_name : str
@@ -1159,6 +1161,12 @@ class HiCSCA:
                 OE_normed_mat = self.hic_loader.load_contact_map(
                     chr_name, resolution, data_type=self.data_type, norm_type=self.norm_type
                 )
+
+                # Original is only an upper-triangular matrix
+                diag = OE_normed_mat.diagonal()
+                OE_normed_mat += OE_normed_mat.T
+                OE_normed_mat.setdiag(diag)
+
             else:
                 # data_type is "observed", apply O/E normalization
                 normalizer = self.normalizers[resolution]
