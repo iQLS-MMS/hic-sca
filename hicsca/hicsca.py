@@ -900,7 +900,8 @@ class HiCSCA:
                  norm_type: str = "NONE",
                  smoothing_cutoff: int = 400,
                  min_nonzero_inter_AB_contacts: int = 0,
-                 min_peak_height: float = 0.01):
+                 min_peak_height: float = 0.01,
+                 low_coverage_filter: bool = True):
         """
         Initialize the HiC-SCA pipeline.
 
@@ -933,6 +934,10 @@ class HiCSCA:
         min_peak_height : float, optional
             Minimum peak height as a fraction of total loci for histogram peak detection
             during low-coverage filtering (default: 0.01, i.e. 1% of total loci).
+        low_coverage_filter : bool, optional
+            If True, apply histogram-based low-coverage filtering (default: True).
+            If False, use a simple non-zero filter that only removes bins where
+            the row sum of the O/E matrix is zero.
 
         Raises
         ------
@@ -989,6 +994,7 @@ class HiCSCA:
         self.smoothing_cutoff = smoothing_cutoff
         self.min_nonzero_inter_AB_contacts = min_nonzero_inter_AB_contacts
         self.min_peak_height = min_peak_height
+        self.low_coverage_filter = low_coverage_filter
         self.normalizers = {}  # Resolution -> BackgroundNormalizer
         self._background_computed = set()  # Track which resolutions have background computed
         self.results = {}  # Store all results: {resolution: {chr_name: result_dict}}
@@ -1181,10 +1187,20 @@ class HiCSCA:
                 normalizer = self.normalizers[resolution]
                 OE_normed_mat = normalizer.apply_OE_normalization(chr_name)
 
-            # Initial filtering
-            cutoff, OE_normed_mat_nonzero, include_bool, include_idx = \
-                LowCoverageFilter.filter_low_coverage(OE_normed_mat, include_bool=None, cutoff=None,
-                                                      min_peak_height=self.min_peak_height)
+            # Filtering
+            if self.low_coverage_filter:
+                # Histogram-based low-coverage filtering
+                cutoff, OE_normed_mat_nonzero, include_bool, include_idx = \
+                    LowCoverageFilter.filter_low_coverage(OE_normed_mat, include_bool=None, cutoff=None,
+                                                          min_peak_height=self.min_peak_height)
+            else:
+                # Simple non-zero filter: keep rows/columns where row sum > 0
+                row_sums = np.asarray(OE_normed_mat.sum(axis=0)).flatten()
+                include_bool = row_sums > 0
+                include_idx = np.nonzero(include_bool)[0]
+                include_slice = np.ix_(include_bool, include_bool)
+                OE_normed_mat_nonzero = OE_normed_mat[include_slice].copy()
+                cutoff = None
 
             mean_contacts = OE_normed_mat.mean(axis=0)
             OE_normed_diag = OE_normed_mat.diagonal()
@@ -1192,22 +1208,23 @@ class HiCSCA:
 
             result_dict['cutoff'] = cutoff
 
-            # Iterative filtering (up to 3 iterations)
-            filter_iter = 1
-            while filter_iter < 3:
-                current_mean_contacts = OE_normed_mat_nonzero.mean(axis=0)
+            # Iterative filtering (up to 3 iterations, only with low-coverage filter)
+            if self.low_coverage_filter:
+                filter_iter = 1
+                while filter_iter < 3:
+                    current_mean_contacts = OE_normed_mat_nonzero.mean(axis=0)
 
-                if (current_mean_contacts <= cutoff).sum() > 0:
-                    _, OE_normed_mat_nonzero, include_bool, include_idx = \
-                        LowCoverageFilter.filter_low_coverage(
-                            OE_normed_mat_nonzero, include_bool=include_bool, cutoff=cutoff,
-                            min_peak_height=self.min_peak_height
-                        )
-                    filter_iter += 1
-                    if verbose:
-                        print(f"Low-Coverage Filter: {resolution} - {chr_name} - Iter: {filter_iter}")
-                else:
-                    break
+                    if (current_mean_contacts <= cutoff).sum() > 0:
+                        _, OE_normed_mat_nonzero, include_bool, include_idx = \
+                            LowCoverageFilter.filter_low_coverage(
+                                OE_normed_mat_nonzero, include_bool=include_bool, cutoff=cutoff,
+                                min_peak_height=self.min_peak_height
+                            )
+                        filter_iter += 1
+                        if verbose:
+                            print(f"Low-Coverage Filter: {resolution} - {chr_name} - Iter: {filter_iter}")
+                    else:
+                        break
 
             # Create boolean for excluded non-zero loci
             non_zero_not_included_bool = mean_contacts > 0
