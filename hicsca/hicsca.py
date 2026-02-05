@@ -761,17 +761,21 @@ class InterABScoreCalculator:
 
         # Count non-zero inter-AB contacts (excluding explicit zeros)
         num_nonzero_inter_AB_contacts = edge_weights_coo.count_nonzero()
+        
+        if num_nonzero_inter_AB_contacts > 0:
+            inter_AB_abs = (
+                (compartments[0][edge_weights_coo.row] -
+                compartments[1][edge_weights_coo.col]) ** 2 *
+                edge_weights_coo.data
+            ).sum() / 2
 
-        inter_AB_abs = (
-            (compartments[0][edge_weights_coo.row] -
-             compartments[1][edge_weights_coo.col]) ** 2 *
-            edge_weights_coo.data
-        ).sum() / 2
+            raw_inter_AB_score = inter_AB_abs / edge_weights_coo.data.sum()
 
-        raw_inter_AB_score = inter_AB_abs / edge_weights_coo.data.sum()
+            # Normalize by eigenvalue
+            inter_AB_score = raw_inter_AB_score / normed_eigval
 
-        # Normalize by eigenvalue
-        inter_AB_score = raw_inter_AB_score / normed_eigval
+        else:
+            inter_AB_score = 0
 
         return inter_AB_score, num_nonzero_inter_AB_contacts
 
