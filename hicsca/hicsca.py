@@ -479,7 +479,8 @@ class LowCoverageFilter:
     @staticmethod
     def filter_low_coverage(input_mat: sp.csr_matrix,
                            include_bool: Optional[np.ndarray] = None,
-                           cutoff: Optional[float] = None) -> Tuple:
+                           cutoff: Optional[float] = None,
+                           min_peak_height: float = 0.01) -> Tuple:
         """
         Filter low-coverage loci from O/E normalized contact matrix.
 
@@ -491,6 +492,9 @@ class LowCoverageFilter:
             Boolean array indicating which loci to include
         cutoff : float, optional
             Cutoff threshold for filtering
+        min_peak_height : float, optional
+            Minimum peak height as a fraction of total loci for histogram
+            peak detection (default: 0.01, i.e. 1% of total loci)
 
         Returns
         -------
@@ -521,9 +525,9 @@ class LowCoverageFilter:
             # Find peaks (slope upward then downward)
             peak_idxes = np.where(grad_sign_switch == -2)[0]
 
-            # Set minimum peak height to 1% of total loci
+            # Set minimum peak height
             peak_idxes = peak_idxes[
-                counts[peak_idxes] > int(np.ceil(current_mean_contacts.shape[0] * 0.01))
+                counts[peak_idxes] > int(np.ceil(current_mean_contacts.shape[0] * min_peak_height))
             ]
 
             # Single peak case
@@ -895,7 +899,8 @@ class HiCSCA:
                  data_type: str = "observed",
                  norm_type: str = "NONE",
                  smoothing_cutoff: int = 400,
-                 min_nonzero_inter_AB_contacts: int = 0):
+                 min_nonzero_inter_AB_contacts: int = 0,
+                 min_peak_height: float = 0.01):
         """
         Initialize the HiC-SCA pipeline.
 
@@ -925,6 +930,9 @@ class HiCSCA:
             Minimum required number of non-zero inter-AB contacts for eigenvector selection.
             Eigenvectors with non-zero inter-AB contacts less than or equal to this value
             will be skipped during compartment assignment (default: 0, which disables filtering).
+        min_peak_height : float, optional
+            Minimum peak height as a fraction of total loci for histogram peak detection
+            during low-coverage filtering (default: 0.01, i.e. 1% of total loci).
 
         Raises
         ------
@@ -980,6 +988,7 @@ class HiCSCA:
         self.norm_type = norm_type
         self.smoothing_cutoff = smoothing_cutoff
         self.min_nonzero_inter_AB_contacts = min_nonzero_inter_AB_contacts
+        self.min_peak_height = min_peak_height
         self.normalizers = {}  # Resolution -> BackgroundNormalizer
         self._background_computed = set()  # Track which resolutions have background computed
         self.results = {}  # Store all results: {resolution: {chr_name: result_dict}}
@@ -1174,7 +1183,8 @@ class HiCSCA:
 
             # Initial filtering
             cutoff, OE_normed_mat_nonzero, include_bool, include_idx = \
-                LowCoverageFilter.filter_low_coverage(OE_normed_mat, include_bool=None, cutoff=None)
+                LowCoverageFilter.filter_low_coverage(OE_normed_mat, include_bool=None, cutoff=None,
+                                                      min_peak_height=self.min_peak_height)
 
             mean_contacts = OE_normed_mat.mean(axis=0)
             OE_normed_diag = OE_normed_mat.diagonal()
@@ -1190,7 +1200,8 @@ class HiCSCA:
                 if (current_mean_contacts <= cutoff).sum() > 0:
                     _, OE_normed_mat_nonzero, include_bool, include_idx = \
                         LowCoverageFilter.filter_low_coverage(
-                            OE_normed_mat_nonzero, include_bool=include_bool, cutoff=cutoff
+                            OE_normed_mat_nonzero, include_bool=include_bool, cutoff=cutoff,
+                            min_peak_height=self.min_peak_height
                         )
                     filter_iter += 1
                     if verbose:
