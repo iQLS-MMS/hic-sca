@@ -194,8 +194,10 @@ class CrossResolutionAnalyzer:
         squared_array = reshaped_array ** 2
         sum_squared_array = squared_array.sum(axis=1)
 
-        return np.divide((squared_array * reshaped_array).sum(axis=1),
+        numerator = (squared_array * reshaped_array).sum(axis=1)
+        return np.divide(numerator,
                         sum_squared_array,
+                        out=np.zeros_like(numerator),
                         where=sum_squared_array!=0)
 
     def analyze(self) -> None:

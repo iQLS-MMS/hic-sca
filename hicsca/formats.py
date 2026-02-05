@@ -249,6 +249,7 @@ def save_to_hdf5(hicsca_inst,
             'smoothing_cutoff': hicsca_inst.smoothing_cutoff,
             'min_nonzero_inter_AB_contacts': hicsca_inst.min_nonzero_inter_AB_contacts,
             'min_peak_height': hicsca_inst.min_peak_height,
+            'low_coverage_filter': hicsca_inst.low_coverage_filter,
             'chr_length_dict': hicsca_inst.chr_length_dict
         }
     }
