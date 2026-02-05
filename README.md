@@ -449,7 +449,8 @@ hicsca = HiCSCA(
     data_type="observed",  # "observed" or "oe"
     norm_type="NONE",
     smoothing_cutoff=400,
-    min_nonzero_inter_AB_contacts=0  # Filter eigenvectors by inter-AB contacts
+    min_nonzero_inter_AB_contacts=0,  # Filter eigenvectors by inter-AB contacts
+    min_peak_height=0.01  # Minimum peak height fraction for low-coverage filtering
 )
 ```
 
@@ -461,6 +462,7 @@ hicsca = HiCSCA(
 - `norm_type` (str): Normalization type for hicstraw (default: "NONE")
 - `smoothing_cutoff` (int): Smoothing parameter for O/E normalization (default: 400, only used when data_type="observed")
 - `min_nonzero_inter_AB_contacts` (int): Minimum required number of non-zero inter-AB contacts for eigenvector selection. Eigenvectors with non-zero inter-AB contacts less than or equal to this value will be skipped during compartment assignment (default: 0, which disables filtering)
+- `min_peak_height` (float): Minimum peak height as a fraction of total loci for histogram peak detection during low-coverage filtering (default: 0.01, i.e. 1% of total loci)
 
 **Key Methods:**
 ```python
