@@ -1195,7 +1195,7 @@ class HiCSCA:
                                                           min_peak_height=self.min_peak_height)
             else:
                 # Simple non-zero filter: keep rows/columns where row sum > 0
-                row_sums = np.asarray(OE_normed_mat.sum(axis=0)).flatten()
+                row_sums = OE_normed_mat.sum(axis=0)
                 include_bool = row_sums > 0
                 include_idx = np.nonzero(include_bool)[0]
                 include_slice = np.ix_(include_bool, include_bool)
