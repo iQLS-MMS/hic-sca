@@ -450,7 +450,7 @@ hicsca = HiCSCA(
     norm_type="NONE",
     smoothing_cutoff=400,
     min_nonzero_inter_AB_contacts=0,  # Filter eigenvectors by inter-AB contacts
-    min_peak_height=0.01,  # Minimum peak height fraction for low-coverage filtering
+    min_peak_height=1.0,  # Minimum peak height percentage for low-coverage filtering
     low_coverage_filter=True  # Set False to use simple non-zero filter instead
 )
 ```
@@ -463,7 +463,7 @@ hicsca = HiCSCA(
 - `norm_type` (str): Normalization type for hicstraw (default: "NONE")
 - `smoothing_cutoff` (int): Smoothing parameter for O/E normalization (default: 400, only used when data_type="observed")
 - `min_nonzero_inter_AB_contacts` (int): Minimum required number of non-zero inter-AB contacts for eigenvector selection. Eigenvectors with non-zero inter-AB contacts less than or equal to this value will be skipped during compartment assignment (default: 0, which disables filtering)
-- `min_peak_height` (float): Minimum peak height as a fraction of total loci for histogram peak detection during low-coverage filtering (default: 0.01, i.e. 1% of total loci)
+- `min_peak_height` (float): Minimum peak height as a percentage of total loci for histogram peak detection during low-coverage filtering (default: 1.0, i.e. 1% of total loci)
 - `low_coverage_filter` (bool): If True, apply histogram-based low-coverage filtering (default: True). If False, use a simple non-zero filter that only removes bins where the row sum of the O/E matrix is zero.
 
 **Key Methods:**
