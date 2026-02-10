@@ -591,7 +591,7 @@ class EigenDecomposer:
         self.sqrt_deg = sqrt_deg
         self.sqrt_deg /= np.linalg.norm(self.sqrt_deg)
         self.min_tol = 10 ** np.floor(
-            np.log10(np.finfo(laplacian_mat.dtype).eps * 100)
+            np.log10(np.finfo(laplacian_mat.dtype).eps) + 2
         )
         self.results = None
         self.verbose = verbose
@@ -633,7 +633,7 @@ class EigenDecomposer:
         """
         restarted_status = False
         max_iter = init_max_iter
-        init_tol = tol
+        rng = np.random.default_rng()
 
         with warnings.catch_warnings():
             warnings.showwarning = self._warning_callback
@@ -642,39 +642,60 @@ class EigenDecomposer:
                 self.decompose_fail = False
 
                 if init_eigvects is None:
-                    init_eigvects = (np.random.rand(self.laplacian_mat.shape[0], 11) - 0.5) * 2
+                    init_eigvects = (rng.random((self.laplacian_mat.shape[0], 11)) - 0.5) * 2
                     init_eigvects[:, 0] = self.sqrt_deg
                     init_eigvects /= np.linalg.norm(init_eigvects, axis=0)
 
-                self.results = sp.linalg.lobpcg(
-                    self.laplacian_mat,
-                    init_eigvects,
-                    tol=tol,
-                    maxiter=max_iter,
-                    retLambdaHistory=True,
-                    retResidualNormsHistory=True,
-                    largest=False
-                )
+                try:
+                    self.results = sp.linalg.lobpcg(
+                        self.laplacian_mat,
+                        init_eigvects,
+                        tol=self.min_tol,
+                        maxiter=max_iter,
+                        retLambdaHistory=True,
+                        retResidualNormsHistory=True,
+                        largest=False
+                    )
+                except ValueError as e:
+
+                    if self.verbose:
+                        print(f"LOBPCG Error: {e}")
+
+                    if not restarted_status:
+                        restarted_status = True
+                        max_retry = 6
+                        max_iter = init_max_iter
+                        init_eigvects = None
+
+                        if self.verbose:
+                            print("Reset and rerun")
+                        continue
+                    else:
+                        if self.verbose:
+                            print("LOBPCG Error after restart, giving up")
+                        return None, False
 
                 if self.decompose_fail:
                     target_tols = 10 ** np.floor(
-                        np.log10(np.abs(self.results[0][1:] - self.results[0][:-1]) * 0.1)
+                        np.log10(np.abs(self.results[0][1:] - self.results[0][:-1])) - 1
                     )
+                    
+                    non_zero_eigvals = np.where(~np.isclose(self.results[0][1:], 0, rtol=0, atol=self.min_tol))[0]
+                    target_tols = target_tols[non_zero_eigvals]
                     target_tols[target_tols < self.min_tol] = self.min_tol
 
-                    tol_status = self.res_errors[1:] < target_tols
+                    tol_status = self.res_errors[1:][non_zero_eigvals] < target_tols
 
                     if tol_status.all():
                         return self.results, True
 
-                    target_tol = target_tols[~tol_status].min()
-
                     if max_retry == 1:
-                        if (target_tol > 1e-10) and not restarted_status:
+                        if not restarted_status:
                             restarted_status = True
                             max_retry = 6
                             max_iter = init_max_iter
                             init_eigvects = None
+
                             if self.verbose:
                                 print("Reset and rerun")
                             continue
@@ -683,28 +704,24 @@ class EigenDecomposer:
                                 print("Eigenvalues not converged")
                             return self.results, False
 
-                    if target_tol > init_tol:
-                        target_tol = init_tol
-
                     init_eigvects = self.results[1].copy()
                     init_eigvects[:, 0] = self.sqrt_deg
-                    random_perturb = (np.random.rand(
+                    random_perturb = (rng.random((
                         self.laplacian_mat.shape[0],
                         tol_status.sum()
-                    ) - 0.5) * 2 * 10 ** np.floor(
-                        np.log10(np.abs(self.results[1][:, 1:][:, tol_status]) * 0.1)
+                    )) - 0.5) * 2 * 10 ** np.floor(
+                        np.log10(np.abs(self.results[1][:, 1:][:, non_zero_eigvals[tol_status]]))
                     )
-                    init_eigvects[:, 1:][:, tol_status] = \
-                        random_perturb + self.results[1][:, 1:][:, tol_status]
+                    init_eigvects[:, 1:][:, non_zero_eigvals[tol_status]] = \
+                        random_perturb + self.results[1][:, 1:][:, non_zero_eigvals[tol_status]]
                     init_eigvects /= np.linalg.norm(init_eigvects, axis=0)
 
                     max_retry -= 1
                     max_iter *= 2
-                    tol = target_tol
 
                     if self.verbose:
                         print(f"Eigen-decomposition: Remaining Tries: {max_retry} - "
-                              f"New Target Tol: {target_tol:.0E} - New Max iter: {max_iter}")
+                              f"New Max iter: {max_iter}")
 
                 else:
                     return self.results, True
@@ -859,14 +876,16 @@ class CompartmentAssigner:
         tuple
             (selected_eigenvector_index, modified_inter_eigval_score, unmodified_inter_AB_score)
         """
-        rel_eigvals = eigvals / eigvals[1]
+        # Check the smallest eigval that is non-zero
+        first_nonzero_idx = np.where(~np.isclose(eigvals, 0, rtol=0, atol=1e-15))[0][0]
+        rel_eigvals = eigvals / eigvals[first_nonzero_idx]
 
         final_modified_score = 0
         final_unmodified_score = 0
         final_pc_idx = None
 
         # Evaluate the 2nd eigenvectors through num_components+1 (0-indexed)
-        for idx in range(1, num_components + 1):
+        for idx in range(first_nonzero_idx, num_components + 1):
             # Calculate inter-AB score using InterABScoreCalculator
             inter_AB_score, num_nonzero_inter_AB_contacts = InterABScoreCalculator.calculate_inter_AB_score(
                 eigenvects[idx], eigvals[idx], OE_normed_mat_nonzero
