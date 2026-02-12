@@ -877,7 +877,12 @@ class CompartmentAssigner:
             (selected_eigenvector_index, modified_inter_eigval_score, unmodified_inter_AB_score)
         """
         # Check the smallest eigval that is non-zero
-        first_nonzero_idx = np.where(~np.isclose(eigvals, 0, rtol=0, atol=1e-15))[0][0]
+        non_zero_eigvals_idx = np.where(~np.isclose(eigvals, 0, rtol=0, atol=1e-15))[0]
+
+        if non_zero_eigvals_idx.shape[0] == 0:
+            return None, 0, 0
+
+        first_nonzero_idx = non_zero_eigvals_idx[0]
         rel_eigvals = eigvals / eigvals[first_nonzero_idx]
 
         final_modified_score = 0
