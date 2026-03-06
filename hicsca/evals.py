@@ -566,9 +566,9 @@ class CrossDatasetAnalyzer:
                             if (ref_result['Success'] is False) and (pred_result['Success'] is False):
                                 penalty += ref_result['deg'].shape[0]
                             elif ref_result['Success'] is False:
-                                penalty += (ref_result['assigned_AB_compartment'] != 0).sum()
-                            else:
                                 penalty += (pred_result['assigned_AB_compartment'] != 0).sum()
+                            else:
+                                penalty += (ref_result['assigned_AB_compartment'] != 0).sum()
 
                             continue
 

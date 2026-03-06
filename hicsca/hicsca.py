@@ -606,7 +606,6 @@ class EigenDecomposer:
             self.decompose_fail = True
 
     def decompose(self,
-                 tol: float = 1e-5,
                  max_retry: int = 6,
                  init_max_iter: int = 20,
                  init_eigvects: Optional[np.ndarray] = None) -> Tuple:
@@ -615,8 +614,6 @@ class EigenDecomposer:
 
         Parameters
         ----------
-        tol : float, optional
-            Tolerance for convergence (default: 1e-5)
         max_retry : int, optional
             Maximum number of retry attempts (default: 6)
         init_max_iter : int, optional
@@ -1272,7 +1269,7 @@ class HiCSCA:
 
             # Perform eigendecomposition
             decomposer = EigenDecomposer(laplacian_mat, sqrt_deg, verbose=verbose)
-            results, converged = decomposer.decompose(tol=1e-5, max_retry=6, init_max_iter=20)
+            results, converged = decomposer.decompose(max_retry=6, init_max_iter=20)
 
             result_dict['Eig Converged'] = converged
 
