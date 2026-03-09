@@ -1258,8 +1258,13 @@ class HiCSCA:
             non_zero_not_included_bool = mean_contacts > 0
             non_zero_not_included_bool[include_idx] = False
 
+            result_dict['include_bool'] = include_bool
+            result_dict['non_zero_not_included_bool'] = non_zero_not_included_bool
+            result_dict['OE_normed_diag'] = OE_normed_diag[include_bool]
+
             # Prepare the laplacian matrix
             deg = np.asarray(OE_normed_mat_nonzero.sum(axis=0)).flatten()
+            result_dict['deg'] = deg
             sqrt_deg = np.sqrt(deg)
             inv_sqrt_deg = 1.0 / sqrt_deg
 
@@ -1290,9 +1295,6 @@ class HiCSCA:
 
             result_dict['eigvals'] = eigvals
             result_dict['eigenvects'] = eigenvects
-            result_dict['OE_normed_diag'] = OE_normed_diag[include_bool]
-            result_dict['non_zero_not_included_bool'] = non_zero_not_included_bool
-            result_dict['include_bool'] = include_bool
 
             # Select best eigenvector
             assigner = CompartmentAssigner()
@@ -1328,7 +1330,6 @@ class HiCSCA:
             result_dict['selected_eig_idx'] = selected_eig_idx
             result_dict['modified_inter_eigval_score'] = modified_inter_eigval_score
             result_dict['unmodified_inter_AB_score'] = unmodified_inter_AB_score
-            result_dict['deg'] = deg
             result_dict['Success'] = True
 
             if verbose:
