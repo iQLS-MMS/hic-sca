@@ -63,6 +63,7 @@ class HiCDataLoader:
         self.max_bp_length = 0
         self.autosomal_chr_names = []
         self.resolutions = []
+        self.autosomal_regex = re.compile(r'^(chr)?[0-9]+$')
 
         self._load_chromosome_info()
 
@@ -76,13 +77,8 @@ class HiCDataLoader:
 
         # Filter to autosomal chromosomes
         for chr_name in self.chr_length_dict.keys():
-            # Exclude mitochondrial chromosome
-            if "m" in chr_name.lower():
-                continue
-            # Exclude combination of all chromosomes
-            elif "all" in chr_name.lower():
-                continue
-            else:
+
+            if len(self.autosomal_regex.findall(chr_name)) > 0:
                 self.autosomal_chr_names.append(chr_name)
 
         # Sort chromosomes using natural sorting (chr1, chr2, ..., chr10, chr11)
