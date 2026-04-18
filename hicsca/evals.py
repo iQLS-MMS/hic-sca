@@ -250,9 +250,9 @@ class CrossResolutionAnalyzer:
                         if (low_res_result['Success'] is False) and (high_res_result['Success'] is False):
                             penalty += low_res_result['deg'].shape[0]
                         elif low_res_result['Success'] is False:
-                            penalty += (low_res_result['assigned_AB_compartment'] != 0).sum()
-                        else:
                             penalty += (high_res_result['assigned_AB_compartment'] != 0).sum()
+                        else:
+                            penalty += (low_res_result['assigned_AB_compartment'] != 0).sum()
 
                         continue
 
