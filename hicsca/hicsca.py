@@ -7,7 +7,7 @@ to assign A-B chromosomal compartments using spectral clustering
 
 import numpy as np
 import scipy.sparse as sp
-import hicstraw
+import hictkpy
 import warnings
 import gc
 import re
@@ -58,7 +58,7 @@ class HiCDataLoader:
             Path to the .hic file
         """
         self.hic_file_path = hic_file_path
-        self.hic_file = hicstraw.HiCFile(hic_file_path)
+        self.hic_file = hictkpy.MultiResFile(hic_file_path)
         self.chr_length_dict = {}
         self.max_bp_length = 0
         self.autosomal_chr_names = []
@@ -69,11 +69,11 @@ class HiCDataLoader:
 
     def _load_chromosome_info(self) -> None:
         """Extract chromosome information from the HiC file."""
-        for chr_obj in self.hic_file.getChromosomes():
-            self.chr_length_dict[chr_obj.name] = chr_obj.length
+        for chr_name, chr_length in self.hic_file.chromosomes().items():
+            self.chr_length_dict[chr_name] = chr_length
 
-            if chr_obj.length > self.max_bp_length:
-                self.max_bp_length = chr_obj.length
+            if chr_length > self.max_bp_length:
+                self.max_bp_length = chr_length
 
         # Filter to autosomal chromosomes
         for chr_name in self.chr_length_dict.keys():
@@ -84,12 +84,11 @@ class HiCDataLoader:
         # Sort chromosomes using natural sorting (chr1, chr2, ..., chr10, chr11)
         self.autosomal_chr_names.sort(key=_natural_sort_key)
 
-        self.resolutions = self.hic_file.getResolutions()
+        self.resolutions = [int(resolution) for resolution in self.hic_file.resolutions()]
 
     def load_contact_map(self,
                         chr_name: str,
                         resolution: int,
-                        data_type: str = "observed",
                         norm_type: str = "NONE") -> sp.csr_matrix:
         """
         Load a sparse contact map for a specific chromosome at a given resolution.
@@ -102,8 +101,6 @@ class HiCDataLoader:
             Chromosome name (e.g., 'chr1')
         resolution : int
             Resolution in base pairs
-        data_type : str, optional
-            Type of data to retrieve (default: "observed")
         norm_type : str, optional
             Normalization type (default: "NONE")
 
@@ -112,32 +109,20 @@ class HiCDataLoader:
         sp.csr_matrix
             Sparse contact map matrix
         """
-        mzd = self.hic_file.getMatrixZoomData(
-            chr_name, chr_name, data_type, norm_type, "BP", resolution
-        )
         chr_length = self.chr_length_dict[chr_name]
         num_bins = int(np.ceil(chr_length / resolution))
 
-        records = mzd.getRecords(1, chr_length, 1, chr_length)
-        num_records = len(records)
+        contact_map = hictkpy.File(self.hic_file_path, resolution).fetch(
+            chr_name, normalization=norm_type, count_type="float"
+        ).to_csr()
 
-        x_coords = np.zeros(num_records, dtype=np.int64)
-        y_coords = np.zeros(num_records, dtype=np.int64)
-        values = np.zeros(num_records, dtype=np.float64)
+        if contact_map.shape != (num_bins, num_bins):
+            raise ValueError(
+                f"Contact map shape {contact_map.shape} for {chr_name} at {resolution} "
+                f"does not match expected ({num_bins}, {num_bins})"
+            )
 
-        for records_idx in range(num_records):
-            x_coords[records_idx] = records[records_idx].binX
-            y_coords[records_idx] = records[records_idx].binY
-            values[records_idx] = records[records_idx].counts
-
-        x_coords = x_coords // resolution
-        y_coords = y_coords // resolution
-
-        return sp.csr_matrix(
-            (values, (x_coords, y_coords)),
-            (num_bins, num_bins),
-            dtype=np.float64
-        )
+        return sp.csr_matrix(contact_map, dtype=np.float64)
 
 
 class BackgroundNormalizer:
@@ -148,7 +133,7 @@ class BackgroundNormalizer:
     """
 
     def __init__(self, hic_loader: HiCDataLoader, resolution: int, chr_names: List[str],
-                 data_type: str = "observed", norm_type: str = "NONE", smoothing_cutoff: int = 400):
+                 norm_type: str = "NONE", smoothing_cutoff: int = 400):
         """
         Initialize the background normalizer for a specific dataset and resolution.
 
@@ -160,10 +145,6 @@ class BackgroundNormalizer:
             Resolution in base pairs for this analysis
         chr_names : list of str
             List of chromosome names to process
-        data_type : str, optional
-            Type of data to retrieve from hic_loader (default: "observed").
-            The hic_loader can return O/E contact matrices, but not available for
-            "NONE" norm_type
         norm_type : str, optional
             Normalization type for hic_loader (default: "NONE").
             Set to "NONE" to retrieve un-normalized contact matrices
@@ -173,7 +154,6 @@ class BackgroundNormalizer:
         self.hic_loader = hic_loader
         self.resolution = resolution
         self.chr_names = chr_names
-        self.data_type = data_type
         self.norm_type = norm_type
         self.smoothing_cutoff = smoothing_cutoff
         self.background_contact_dict = {}
@@ -245,7 +225,7 @@ class BackgroundNormalizer:
 
         for chr_name in self.chr_names:
             raw_contact_map = self.hic_loader.load_contact_map(
-                chr_name, self.resolution, data_type=self.data_type, norm_type=self.norm_type
+                chr_name, self.resolution, norm_type=self.norm_type
             )
 
             current_background_contact, current_distance_counts = \
@@ -349,7 +329,7 @@ class BackgroundNormalizer:
 
         # Load raw contact map
         raw_contact_map = self.hic_loader.load_contact_map(
-            chr_name, self.resolution, data_type=self.data_type, norm_type=self.norm_type
+            chr_name, self.resolution, norm_type=self.norm_type
         )
 
         OE_normed_mat = sp.csr_array(raw_contact_map)
@@ -420,7 +400,6 @@ def _serialize_background_normalizer(normalizer: BackgroundNormalizer) -> Dict:
     return {
         'resolution': normalizer.resolution,
         'chr_names': normalizer.chr_names,
-        'data_type': normalizer.data_type,
         'norm_type': normalizer.norm_type,
         'smoothing_cutoff': normalizer.smoothing_cutoff,
         'background_contact_dict': normalizer.background_contact_dict,
@@ -453,7 +432,6 @@ def _deserialize_background_normalizer(normalizer_dict: Dict, hic_loader: HiCDat
         hic_loader=hic_loader,
         resolution=normalizer_dict['resolution'],
         chr_names=normalizer_dict['chr_names'],
-        data_type=normalizer_dict['data_type'],
         norm_type=normalizer_dict['norm_type'],
         smoothing_cutoff=normalizer_dict['smoothing_cutoff']
     )
@@ -475,8 +453,7 @@ class LowCoverageFilter:
     @staticmethod
     def filter_low_coverage(input_mat: sp.csr_matrix,
                            include_bool: Optional[np.ndarray] = None,
-                           cutoff: Optional[float] = None,
-                           min_peak_height: float = 1.0) -> Tuple:
+                           cutoff: Optional[float] = None) -> Tuple:
         """
         Filter low-coverage loci from O/E normalized contact matrix.
 
@@ -488,9 +465,6 @@ class LowCoverageFilter:
             Boolean array indicating which loci to include
         cutoff : float, optional
             Cutoff threshold for filtering
-        min_peak_height : float, optional
-            Minimum peak height as a percentage of total loci for histogram
-            peak detection (default: 1.0, i.e. 1% of total loci)
 
         Returns
         -------
@@ -520,11 +494,6 @@ class LowCoverageFilter:
 
             # Find peaks (slope upward then downward)
             peak_idxes = np.where(grad_sign_switch == -2)[0]
-
-            # Set minimum peak height
-            peak_idxes = peak_idxes[
-                counts[peak_idxes] > int(np.ceil(current_mean_contacts.shape[0] * (min_peak_height / 100)))
-            ]
 
             # No peaks found - fall back to non-zero filter
             if peak_idxes.shape[0] == 0:
@@ -726,7 +695,7 @@ class InterABScoreCalculator:
     @staticmethod
     def calculate_inter_AB_score(eigvect: np.ndarray,
                                 eigval: float,
-                                OE_normed_mat: sp.csr_matrix) -> Tuple[float, int]:
+                                OE_normed_mat: sp.csr_matrix) -> float:
         """
         Calculate the inter-AB compartment contact score.
 
@@ -741,10 +710,9 @@ class InterABScoreCalculator:
 
         Returns
         -------
-        tuple
-            (inter_AB_score, num_nonzero_inter_AB_contacts)
-            - inter_AB_score: Inter-AB score normalized by eigenvalue
-            - num_nonzero_inter_AB_contacts: Number of non-zero inter-AB contacts
+        float
+            Inter-AB score normalized by eigenvalue. NaN if the score is undefined
+            (empty compartment or no non-zero inter-AB contacts)
         """
         # Normalize eigenvector by column sums
         deg = np.asarray(OE_normed_mat.sum(axis=0)).flatten()
@@ -758,9 +726,9 @@ class InterABScoreCalculator:
             normed_eigvect < 0
         ]
 
-        # Return 0 if either compartment is empty
+        # Return NaN if either compartment is empty
         if (compartment_bools[0].sum() == 0) or (compartment_bools[1].sum() == 0):
-            return 0.0, 0
+            return np.nan
 
         compartments = [
             normed_eigvect[compartment_bools[0]],
@@ -788,9 +756,9 @@ class InterABScoreCalculator:
             inter_AB_score = raw_inter_AB_score / normed_eigval
 
         else:
-            inter_AB_score = 0
+            inter_AB_score = np.nan
 
-        return inter_AB_score, num_nonzero_inter_AB_contacts
+        return inter_AB_score
 
 
 class CompartmentAssigner:
@@ -841,8 +809,7 @@ class CompartmentAssigner:
     def select_eigenvector(OE_normed_mat_nonzero: sp.csr_matrix,
                           eigvals: np.ndarray,
                           eigenvects: np.ndarray,
-                          num_components: int = 10,
-                          min_nonzero_inter_AB_contacts: int = 0) -> Tuple[int, float, float]:
+                          num_components: int = 10) -> Tuple[Optional[int], float, float]:
         """
         Select the best eigenvector for compartment prediction.
 
@@ -859,21 +826,18 @@ class CompartmentAssigner:
             Eigenvectors from decomposition (as rows)
         num_components : int, optional
             Number of eigenvectors to evaluate (default: 10)
-        min_nonzero_inter_AB_contacts : int, optional
-            Minimum required number of non-zero inter-AB contacts. Eigenvectors
-            with non-zero inter-AB contacts less than or equal to this value
-            will be skipped (default: 0, which effectively disables filtering)
 
         Returns
         -------
         tuple
             (selected_eigenvector_index, modified_inter_eigval_score, unmodified_inter_AB_score)
+            (None, nan, nan) if no valid eigenvector is found
         """
         # Check the smallest eigval that is non-zero
         non_zero_eigvals_idx = np.where(~np.isclose(eigvals, 0, rtol=0, atol=1e-14))[0]
 
         if non_zero_eigvals_idx.shape[0] == 0:
-            return None, 0, 0
+            return None, np.nan, np.nan
 
         first_nonzero_idx = non_zero_eigvals_idx[0]
         rel_eigvals = eigvals / eigvals[first_nonzero_idx]
@@ -885,16 +849,12 @@ class CompartmentAssigner:
         # Evaluate the 2nd eigenvectors through num_components+1 (0-indexed)
         for idx in range(first_nonzero_idx, num_components + 1):
             # Calculate inter-AB score using InterABScoreCalculator
-            inter_AB_score, num_nonzero_inter_AB_contacts = InterABScoreCalculator.calculate_inter_AB_score(
+            inter_AB_score = InterABScoreCalculator.calculate_inter_AB_score(
                 eigenvects[idx], eigvals[idx], OE_normed_mat_nonzero
             )
 
-            # Skip if score is 0 (indicates empty compartment)
-            if inter_AB_score == 0.0:
-                continue
-
-            # Skip if number of non-zero inter-AB contacts is at or below cutoff
-            if num_nonzero_inter_AB_contacts <= min_nonzero_inter_AB_contacts:
+            # Skip if score is undefined (empty compartment or no inter-AB contacts)
+            if np.isnan(inter_AB_score):
                 continue
 
             # Further weight by relative eigenvalue significance (modified score)
@@ -904,6 +864,9 @@ class CompartmentAssigner:
                 final_modified_score = modified_score
                 final_unmodified_score = inter_AB_score
                 final_pc_idx = idx
+
+        if final_pc_idx is None:
+            return None, np.nan, np.nan
 
         return final_pc_idx, final_modified_score, final_unmodified_score
 
@@ -920,12 +883,8 @@ class HiCSCA:
                  chr_names: Optional[List[str]] = None,
                  resolutions: Optional[List[int]] = None,
                  chr_length_dict: Optional[Dict[str, int]] = None,
-                 data_type: str = "observed",
                  norm_type: str = "NONE",
-                 smoothing_cutoff: int = 400,
-                 min_nonzero_inter_AB_contacts: int = 0,
-                 min_peak_height: float = 1.0,
-                 low_coverage_filter: bool = True):
+                 smoothing_cutoff: int = 400):
         """
         Initialize the HiC-SCA pipeline.
 
@@ -943,38 +902,16 @@ class HiCSCA:
         chr_length_dict : dict, optional
             Dictionary mapping chromosome names to lengths in bp. If None and hic_file_path
             is provided, extracted from .hic file. Required if hic_file_path is None.
-        data_type : str, optional
-            Type of data to retrieve from hic_loader. Must be "observed" or "oe" (default: "observed").
-            If "oe", the data is already O/E normalized and background normalization is skipped.
         norm_type : str, optional
             Normalization type for hic_loader (default: "NONE")
         smoothing_cutoff : int, optional
             Cutoff threshold for smoothing background contacts (default: 400).
-            Only used when data_type is "observed".
-        min_nonzero_inter_AB_contacts : int, optional
-            Minimum required number of non-zero inter-AB contacts for eigenvector selection.
-            Eigenvectors with non-zero inter-AB contacts less than or equal to this value
-            will be skipped during compartment assignment (default: 0, which disables filtering).
-        min_peak_height : float, optional
-            Minimum peak height as a percentage of total loci for histogram peak detection
-            during low-coverage filtering (default: 1.0, i.e. 1% of total loci).
-        low_coverage_filter : bool, optional
-            If True, apply histogram-based low-coverage filtering (default: True).
-            If False, use a simple non-zero filter that only removes bins where
-            the row sum of the O/E matrix is zero.
 
         Raises
         ------
         ValueError
-            If data_type is not "observed" or "oe", or if required parameters are missing
-            when hic_file_path is None
+            If required parameters are missing when hic_file_path is None
         """
-        # Validate data_type
-        if data_type not in ["observed", "oe"]:
-            raise ValueError(
-                f"data_type must be 'observed' or 'oe', got '{data_type}'"
-            )
-
         # Handle initialization with or without .hic file
         if hic_file_path is not None:
             # Initialize with .hic file
@@ -1013,12 +950,8 @@ class HiCSCA:
             self.resolutions = resolutions
             self.chr_length_dict = chr_length_dict
 
-        self.data_type = data_type
         self.norm_type = norm_type
         self.smoothing_cutoff = smoothing_cutoff
-        self.min_nonzero_inter_AB_contacts = min_nonzero_inter_AB_contacts
-        self.min_peak_height = min_peak_height
-        self.low_coverage_filter = low_coverage_filter
         self.normalizers = {}  # Resolution -> BackgroundNormalizer
         self._background_computed = set()  # Track which resolutions have background computed
         self.results = {}  # Store all results: {resolution: {chr_name: result_dict}}
@@ -1072,6 +1005,11 @@ class HiCSCA:
         init_params = {'hic_file_path': hic_file_path}
         init_params.update(metadata)
 
+        # Drop removed parameters stored in older HDF5 files
+        for removed_param in ['min_nonzero_inter_AB_contacts', 'min_peak_height', 'low_coverage_filter',
+                              'data_type']:
+            init_params.pop(removed_param, None)
+
         # Create new HiCSCA instance
         instance = cls(**init_params)
 
@@ -1092,18 +1030,12 @@ class HiCSCA:
         """
         Compute genome-wide background normalization for specified resolutions.
 
-        Skipped if data_type is "oe" (data already O/E normalized).
-
         Parameters
         ----------
         resolutions : list of int, optional
             List of resolutions to compute background for. If None, computes for
             all configured resolutions (default: None)
         """
-        # Skip background normalization if data is already O/E normalized
-        if self.data_type == "oe":
-            return
-
         # Use all configured resolutions if not specified
         if resolutions is None:
             resolutions = self.resolutions
@@ -1112,7 +1044,7 @@ class HiCSCA:
             if resolution not in self._background_computed:
                 normalizer = BackgroundNormalizer(
                     self.hic_loader, resolution, self.chr_names,
-                    data_type=self.data_type, norm_type=self.norm_type,
+                    norm_type=self.norm_type,
                     smoothing_cutoff=self.smoothing_cutoff
                 )
                 normalizer.calculate_genome_background()
@@ -1125,8 +1057,7 @@ class HiCSCA:
         Process a single chromosome to predict A-B compartments at specified resolutions.
 
         Results are stored in self.results[resolution][chr_name].
-        Automatically computes background normalization if not already done
-        (unless data_type is "oe").
+        Automatically computes background normalization if not already done.
 
         Skips processing if a chromosome-resolution pair has already been processed
         (determined by the presence of 'Success' key in results).
@@ -1168,13 +1099,11 @@ class HiCSCA:
             resolutions = self.resolutions
 
         # Ensure background normalization is computed for needed resolutions
-        if self.data_type == "observed":
-            # Determine which resolutions need background normalization
-            resolutions_to_compute = [r for r in resolutions if r not in self._background_computed]
-            if resolutions_to_compute:
-                if verbose:
-                    print("Computing background normalization...")
-                self.compute_background_normalization(resolutions=resolutions_to_compute)
+        resolutions_to_compute = [r for r in resolutions if r not in self._background_computed]
+        if resolutions_to_compute:
+            if verbose:
+                print("Computing background normalization...")
+            self.compute_background_normalization(resolutions=resolutions_to_compute)
 
         for resolution in resolutions:
             # Initialize resolution dict if needed
@@ -1194,37 +1123,13 @@ class HiCSCA:
 
             result_dict = {}
 
-            # Load contact map (with or without O/E normalization depending on data_type)
-            if self.data_type == "oe":
-                # Data is already O/E normalized, load directly
-                OE_normed_mat = self.hic_loader.load_contact_map(
-                    chr_name, resolution, data_type=self.data_type, norm_type=self.norm_type
-                )
+            # Load contact map and apply O/E normalization
+            normalizer = self.normalizers[resolution]
+            OE_normed_mat = normalizer.apply_OE_normalization(chr_name)
 
-                # Original is only an upper-triangular matrix
-                diag = OE_normed_mat.diagonal()
-                OE_normed_mat += OE_normed_mat.T
-                OE_normed_mat.setdiag(diag)
-
-            else:
-                # data_type is "observed", apply O/E normalization
-                normalizer = self.normalizers[resolution]
-                OE_normed_mat = normalizer.apply_OE_normalization(chr_name)
-
-            # Filtering
-            if self.low_coverage_filter:
-                # Histogram-based low-coverage filtering
-                cutoff, OE_normed_mat_nonzero, include_bool, include_idx = \
-                    LowCoverageFilter.filter_low_coverage(OE_normed_mat, include_bool=None, cutoff=None,
-                                                          min_peak_height=self.min_peak_height)
-            else:
-                # Simple non-zero filter: keep rows/columns where row sum > 0
-                row_sums = OE_normed_mat.sum(axis=0)
-                include_bool = row_sums > 0
-                include_idx = np.nonzero(include_bool)[0]
-                include_slice = np.ix_(include_bool, include_bool)
-                OE_normed_mat_nonzero = OE_normed_mat[include_slice].copy()
-                cutoff = None
+            # Histogram-based low-coverage filtering
+            cutoff, OE_normed_mat_nonzero, include_bool, include_idx = \
+                LowCoverageFilter.filter_low_coverage(OE_normed_mat, include_bool=None, cutoff=None)
 
             mean_contacts = OE_normed_mat.mean(axis=0)
             OE_normed_diag = OE_normed_mat.diagonal()
@@ -1232,23 +1137,21 @@ class HiCSCA:
 
             result_dict['cutoff'] = cutoff
 
-            # Iterative filtering (up to 3 iterations, only with low-coverage filter)
-            if self.low_coverage_filter:
-                filter_iter = 1
-                while filter_iter < 3:
-                    current_mean_contacts = OE_normed_mat_nonzero.mean(axis=0)
+            # Iterative filtering (up to 3 iterations)
+            filter_iter = 1
+            while filter_iter < 3:
+                current_mean_contacts = OE_normed_mat_nonzero.mean(axis=0)
 
-                    if (current_mean_contacts <= cutoff).sum() > 0:
-                        _, OE_normed_mat_nonzero, include_bool, include_idx = \
-                            LowCoverageFilter.filter_low_coverage(
-                                OE_normed_mat_nonzero, include_bool=include_bool, cutoff=cutoff,
-                                min_peak_height=self.min_peak_height
-                            )
-                        filter_iter += 1
-                        if verbose:
-                            print(f"Low-Coverage Filter: {resolution} - {chr_name} - Iter: {filter_iter}")
-                    else:
-                        break
+                if (current_mean_contacts <= cutoff).sum() > 0:
+                    _, OE_normed_mat_nonzero, include_bool, include_idx = \
+                        LowCoverageFilter.filter_low_coverage(
+                            OE_normed_mat_nonzero, include_bool=include_bool, cutoff=cutoff
+                        )
+                    filter_iter += 1
+                    if verbose:
+                        print(f"Low-Coverage Filter: {resolution} - {chr_name} - Iter: {filter_iter}")
+                else:
+                    break
 
             # Create boolean for excluded non-zero loci
             non_zero_not_included_bool = mean_contacts > 0
@@ -1295,8 +1198,7 @@ class HiCSCA:
             # Select best eigenvector
             assigner = CompartmentAssigner()
             selected_eig_idx, modified_inter_eigval_score, unmodified_inter_AB_score = assigner.select_eigenvector(
-                OE_normed_mat_nonzero, eigvals, eigenvects, num_components=10,
-                min_nonzero_inter_AB_contacts=self.min_nonzero_inter_AB_contacts
+                OE_normed_mat_nonzero, eigvals, eigenvects, num_components=10
             )
 
             del OE_normed_mat_nonzero
@@ -1341,8 +1243,7 @@ class HiCSCA:
         Process all chromosomes at specified resolutions.
 
         Results are stored in self.results[resolution][chr_name].
-        Automatically computes background normalization if not already done
-        (unless data_type is "oe").
+        Automatically computes background normalization if not already done.
 
         Skips processing if a chromosome-resolution pair has already been processed
         (determined by the presence of 'Success' key in results).

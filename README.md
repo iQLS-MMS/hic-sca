@@ -66,19 +66,9 @@ A Python package for assigning A-B compartments from Hi-C (chromosome conformati
 ## Installation<a id="installation"></a>
 There are two ways to install HiC-SCA: from [source](#install-from-source) or from [PyPI](#install-from-pypi).
 
-**Note:** Installation of HiC-SCA takes a few minutes but could take a lot longer if running on older Linux distros which requires compiling dependencies. This estimate excludes installing Xcode (macOS) or WSL2 (Windows)
+**Note:** Installation of HiC-SCA takes a few minutes but could take a lot longer if running on older Linux distros which requires compiling dependencies.
 
 **Note:** Sample/test Hi-C data must be downloaded separately from [figshare](https://figshare.com/s/7a857f697923bf1b50d6). See [Sample/Test Data](#sample-test-data) section for details. Also the reference **examples** folder for comparison in the [Demo](#demo) section can only be obtained by installing from source
-
-**Extra instructions for macOS:**
-
-If installing on macOS, you will need Xcode. To check if you have Xcode installed, in Terminal, execute `xcode-select -p`. If it returns an error, you need to install Xcode. There are 3 ways to achieve this:
-1. Install Xcode from [Apple Developer](https://developer.apple.com/download/)
-2. Install "Command Line Tools" from [Apple Developer](https://developer.apple.com/download/)
-3. "Command Line Tools" is installed with brew. Install brew by following the instructions at [brew.sh](https://brew.sh/)
-
-**Extra instructions for Windows 11:**
-HiC-SCA requires the hic-straw package, which contains C++ code that cannot be compiled by the Microsoft MSVC compiler on Windows. To run HiC-SCA on Windows, use WSL2. Instructions for installing WSL 2: https://learn.microsoft.com/en-us/windows/wsl/install
 
 ### Install from Source<a id="install-from-source"></a>
 
@@ -86,7 +76,7 @@ HiC-SCA requires the hic-straw package, which contains C++ code that cannot be c
 
 2. Create a new environment:
 ```bash
-mamba create -n hicsca python git cxx-compiler zlib curl
+mamba create -n hicsca python git
 ```
 
 3. Activate environment:
@@ -117,7 +107,7 @@ pip install .
 
 2. Create a new environment:
 ```bash
-mamba create -n hicsca python cxx-compiler zlib curl
+mamba create -n hicsca python
 ```
 
 3. Activate environment:
@@ -138,7 +128,7 @@ pip install hic-sca
 ### Dependencies<a id="dependencies"></a>
 
 The package automatically installs:
-- hicstraw >= 1.3.0 (reading .hic files)
+- hictkpy >= 1.4.0 (reading .hic files)
 - numpy >= 1.19.0 (numerical computations)
 - scipy >= 1.15.0 (sparse matrices, eigendecomposition)
 - h5py >= 3.0.0 (HDF5 I/O)
@@ -279,7 +269,6 @@ hicsca.plot_cross_resolution_mcc(save_path="cross_res_mcc.png")
 - `-p, --output-prefix PREFIX` - Prefix for output files (required)
 - `-o, --output-dir DIR` - Output directory (default: current directory)
 - `-c, --chromosomes CHR [CHR ...]` - Space-separated chromosome names (default: chr1-chr22)
-- `-t, --data-type TYPE` - Data type: "observed" or "oe" (default: "observed")
 - `-v, --verbose` - Enable verbose output
 - `--bed` - Generate BED files for each resolution
 - `--bedgraph` - Generate BedGraph files for each resolution
@@ -304,9 +293,6 @@ hic-sca -f data.hic -r 100000 -p my_sample -o results/
 
 # Specific chromosomes
 hic-sca -f data.hic -r 100000 -c chr1 chr2 chr3 -p my_sample
-
-# Use pre-normalized O/E data from the .hic file (skip background normalization)
-hic-sca -f data.hic -r 100000 -p my_sample -t oe
 
 # Load existing HDF5 and export to BED/BedGraph
 hic-sca --load-hdf5 results.h5 -p output --bed --bedgraph
@@ -446,12 +432,8 @@ hicsca = HiCSCA(
     hic_file_path="data/sample.hic",
     chr_names=None,  # None = all autosomal chromosomes
     resolutions=None,  # None = all available resolutions
-    data_type="observed",  # "observed" or "oe"
     norm_type="NONE",
-    smoothing_cutoff=400,
-    min_nonzero_inter_AB_contacts=0,  # Filter eigenvectors by inter-AB contacts
-    min_peak_height=1.0,  # Minimum peak height percentage for low-coverage filtering
-    low_coverage_filter=True  # Set False to use simple non-zero filter instead
+    smoothing_cutoff=400
 )
 ```
 
@@ -459,12 +441,8 @@ hicsca = HiCSCA(
 - `hic_file_path` (str): Path to .hic file
 - `chr_names` (list or None): Chromosome names to process (default: all autosomal)
 - `resolutions` (list or None): Resolutions in bp (default: auto-detect all)
-- `data_type` (str): "observed" (raw contacts with O/E normalization) or "oe" (pre-normalized, skip O/E)
-- `norm_type` (str): Normalization type for hicstraw (default: "NONE")
-- `smoothing_cutoff` (int): Smoothing parameter for O/E normalization (default: 400, only used when data_type="observed")
-- `min_nonzero_inter_AB_contacts` (int): Minimum required number of non-zero inter-AB contacts for eigenvector selection. Eigenvectors with non-zero inter-AB contacts less than or equal to this value will be skipped during compartment assignment (default: 0, which disables filtering)
-- `min_peak_height` (float): Minimum peak height as a percentage of total loci for histogram peak detection during low-coverage filtering (default: 1.0, i.e. 1% of total loci)
-- `low_coverage_filter` (bool): If True, apply histogram-based low-coverage filtering (default: True). If False, use a simple non-zero filter that only removes bins where the row sum of the O/E matrix is zero.
+- `norm_type` (str): Normalization type for hictkpy (default: "NONE")
+- `smoothing_cutoff` (int): Smoothing parameter for O/E normalization (default: 400)
 
 **Key Methods:**
 ```python
@@ -521,11 +499,10 @@ hicsca.plot_cross_resolution_mcc(
 
 **Usage:**
 ```python
-# Example 1: Using observed data (default - with O/E normalization)
+# Example 1: Run HiC-SCA (with O/E normalization)
 hicsca = HiCSCA(
     "data/sample.hic",
     resolutions=[100000, 50000],
-    data_type="observed",
     norm_type="NONE"
 )
 
@@ -544,16 +521,7 @@ hicsca.to_bed(100000, "compartments_100kb.bed")
 hicsca.to_excel(100000, "compartments_100kb.xlsx")
 hicsca.to_hdf5("saved_analysis.h5")
 
-# Example 2: Using pre-normalized O/E data (skips background normalization)
-hicsca_oe = HiCSCA(
-    "data/sample.hic",
-    resolutions=[100000],
-    data_type="oe",  # Data already O/E normalized
-    norm_type="KR"   # Can use normalized data if available
-)
-hicsca_oe.process_all_chromosomes(verbose=True)
-
-# Example 3: Load previously saved HiCSCA instance
+# Example 2: Load previously saved HiCSCA instance
 hicsca_loaded = HiCSCA.from_hdf5("saved_analysis.h5")
 # All results and normalizations already loaded - no processing needed
 result = hicsca_loaded.results[100000]['chr1']
@@ -693,9 +661,9 @@ Chan, J. & Kono, H. HiC-SCA: A Spectral Clustering Method for Reliable A/B Compa
 
 ### Dependencies<a id="dependencies-1"></a>
 
-Our package uses [hicstraw](https://github.com/aidenlab/straw):
+Our package uses [hictkpy](https://github.com/paulsengroup/hictkpy):
 
-Durand, N.C., Robinson, J.T., Shamim, M.S., Machol, I., Mesirov, J.P., Lander, E.S., and Aiden, E.L. (2016). Juicebox Provides a Visualization System for Hi-C Contact Maps with Unlimited Zoom. *Cell Systems* 3, 99–101. https://doi.org/10.1016/j.cels.2015.07.012.
+Rossini, R. and Paulsen, J. (2024). hictk: blazing fast toolkit to work with .hic and .cool files. *Bioinformatics* 40, btae408. https://doi.org/10.1093/bioinformatics/btae408.
 
 LOBPCG algorithm (SciPy) for efficient eigen-decomposition:
 

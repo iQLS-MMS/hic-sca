@@ -84,7 +84,6 @@ def hicsca_instance(test_data_available):
         str(TEST_HIC_FILE),
         chr_names=None,  # Auto-detect all chromosomes
         resolutions=[500000, 250000, 100000, 50000],
-        data_type="observed",
         norm_type="NONE",
         smoothing_cutoff=400
     )

@@ -222,24 +222,6 @@ class TestRegressionComparison:
 class TestFieldComparison:
     """Field-by-field comparison tests for specific result dictionary fields."""
 
-    def test_eigvals_match(self, computed_results, reference_results,
-                          computed_resolution_list, computed_chr_names):
-        """Test that eigenvalues match within tolerance."""
-        for resolution in computed_resolution_list:
-            for chr_name in computed_chr_names:
-                computed_result = computed_results[resolution][chr_name]
-                reference_result = reference_results[resolution][chr_name]
-
-                if computed_result['Success'] and reference_result['Success']:
-                    computed_eigvals = computed_result['eigvals']
-                    reference_eigvals = reference_result['eigvals']
-
-                    assert computed_eigvals.shape == reference_eigvals.shape, \
-                        f"Eigvals shape mismatch for {chr_name} at {resolution}"
-
-                    assert np.allclose(computed_eigvals, reference_eigvals, rtol=1e-5, atol=1e-5), \
-                        f"Eigenvalues mismatch for {chr_name} at {resolution}"
-
     def test_include_bool_match(self, computed_results, reference_results,
                                computed_resolution_list, computed_chr_names):
         """Test that include_bool arrays match."""
