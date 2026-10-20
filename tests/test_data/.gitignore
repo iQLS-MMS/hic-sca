@@ -6,3 +6,6 @@
 # Test output directories
 output/
 results/
+
+# Test Hi-C data (download from figshare; too large for git)
+*.hic
