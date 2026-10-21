@@ -9,7 +9,6 @@ import numpy as np
 import scipy.sparse as sp
 import hictkpy
 import warnings
-import gc
 import re
 from typing import Dict, Tuple, List, Optional
 import h5typer
@@ -114,7 +113,7 @@ class HiCDataLoader:
 
         contact_map = hictkpy.File(self.hic_file_path, resolution).fetch(
             chr_name, normalization=norm_type, count_type="float"
-        ).to_csr()
+        ).to_csr(low_memory=True)
 
         if contact_map.shape != (num_bins, num_bins):
             raise ValueError(
@@ -204,10 +203,21 @@ class BackgroundNormalizer:
                 np.zeros(dist_diff, dtype=np.int64)
             ])
 
-        for idx in range(max_distance):
-            current_max_distance = max_distance - idx
-            background_contact[:current_max_distance] += input_contact_map[idx, idx:]
-            distance_counts[:current_max_distance] += 1
+        # Distance from the diagonal of every stored element (upper triangle only, as before)
+        input_contact_map = sp.csr_array(input_contact_map)
+        row_idx = np.repeat(
+            np.arange(max_distance, dtype=input_contact_map.indices.dtype),
+            np.diff(input_contact_map.indptr)
+        )
+        col_dist = input_contact_map.indices - row_idx
+        del row_idx
+        upper_bool = col_dist >= 0
+
+        # Sum of contacts at each distance, and number of matrix elements at each distance
+        background_contact[:max_distance] += np.bincount(
+            col_dist[upper_bool], weights=input_contact_map.data[upper_bool], minlength=max_distance
+        )
+        distance_counts[:max_distance] += max_distance - np.arange(max_distance, dtype=np.int64)
 
         return background_contact, distance_counts
 
@@ -239,7 +249,6 @@ class BackgroundNormalizer:
             self.complete_distance_counts[:current_max_dist_bins] += current_distance_counts
 
             del raw_contact_map
-            gc.collect()
 
         # Smooth the background distribution
         below_cutoff_idx = np.where(
@@ -250,33 +259,27 @@ class BackgroundNormalizer:
         smoothed_background_contact = self.complete_background_contact.copy()
         smoothed_distance_counts = self.complete_distance_counts.copy()
 
-        for current_idx in below_cutoff_idx:
-            bin_size = 1
+        # For each low-count distance, the window [current_idx, stop_idx) is the shortest one
+        # of at least 2 bins whose total reads reach smoothing_cutoff, or the rest of the
+        # distribution if none does. Found with a cumulative sum instead of growing the window.
+        background_cumsum = np.concatenate([[0.0], np.cumsum(self.complete_background_contact)])
+        stop_idxes = np.searchsorted(
+            background_cumsum,
+            background_cumsum[below_cutoff_idx] + self.smoothing_cutoff,
+            side='left'
+        )
+        stop_idxes = np.minimum(np.maximum(stop_idxes, below_cutoff_idx + 2), max_bin_dist)
 
-            while True:
-                start_idx = current_idx
-                stop_idx = current_idx + bin_size + 1
-                start_stop_slice = slice(start_idx, stop_idx)
+        for current_idx, stop_idx in zip(below_cutoff_idx, stop_idxes):
+            # The last distance has no window of 2 bins and is left unchanged
+            if current_idx + 2 > max_bin_dist:
+                continue
 
-                if stop_idx > max_bin_dist:
-                    break
-
-                total_reads = self.complete_background_contact[start_stop_slice].sum()
-
-                if total_reads < self.smoothing_cutoff:
-                    # Deal with the end of the distribution
-                    if stop_idx == max_bin_dist:
-                        smoothed_background_contact[current_idx] = total_reads
-                        smoothed_distance_counts[current_idx] = \
-                            self.complete_distance_counts[start_stop_slice].sum()
-                        break
-                    else:
-                        bin_size += 1
-                else:
-                    smoothed_background_contact[current_idx] = total_reads
-                    smoothed_distance_counts[current_idx] = \
-                        self.complete_distance_counts[start_stop_slice].sum()
-                    break
+            start_stop_slice = slice(current_idx, stop_idx)
+            smoothed_background_contact[current_idx] = \
+                self.complete_background_contact[start_stop_slice].sum()
+            smoothed_distance_counts[current_idx] = \
+                self.complete_distance_counts[start_stop_slice].sum()
 
         self.avg_background_dist = smoothed_background_contact / smoothed_distance_counts
 
@@ -332,45 +335,29 @@ class BackgroundNormalizer:
             chr_name, self.resolution, norm_type=self.norm_type
         )
 
+        # OE_normed_mat shares its arrays with raw_contact_map (no copy), so drop
+        # raw_contact_map to free the upper-triangular arrays after symmetrization
         OE_normed_mat = sp.csr_array(raw_contact_map)
         max_dist = raw_contact_map.shape[0]
+        del raw_contact_map
         avg_background_dist_nonzero_bool = self.avg_background_dist != 0
 
-        for idx in range(max_dist):
-            current_max_dist = max_dist - idx
-            current_avg_background_dist_nonzero_bool = \
-                avg_background_dist_nonzero_bool[:current_max_dist]
+        # Convert column indices to distance from diagonal (upper triangular), for all elements
+        row_idx = np.repeat(
+            np.arange(max_dist, dtype=OE_normed_mat.indices.dtype),
+            np.diff(OE_normed_mat.indptr)
+        )
+        col_dist = OE_normed_mat.indices - row_idx
+        del row_idx
 
-            # All the nonzero avg background distances within the current max distance
-            current_avg_background_nonzero_dist = np.nonzero(
-                current_avg_background_dist_nonzero_bool
-            )[0]
+        # Elements whose distance has a nonzero avg background are divided by it;
+        # all other elements (including any below the diagonal) are zeroed out
+        divide_bool = col_dist >= 0
+        divide_bool[divide_bool] = avg_background_dist_nonzero_bool[col_dist[divide_bool]]
 
-            current_row_to_next_sparse_idx = OE_normed_mat.indptr[idx:idx+2]
-            current_row_to_next_sparse_slice = slice(*current_row_to_next_sparse_idx)
-
-            # Convert column indices to distance from diagonal (upper triangular)
-            col_dist = OE_normed_mat.indices[current_row_to_next_sparse_slice] - idx
-
-            # Identify distances in both sparse row and avg background distribution
-            _, comm_idx_1, comm_idx_2 = np.intersect1d(
-                col_dist,
-                current_avg_background_nonzero_dist,
-                assume_unique=True,
-                return_indices=True
-            )
-
-            row_values = OE_normed_mat.data[current_row_to_next_sparse_slice]
-            row_values[comm_idx_1] /= self.avg_background_dist[:current_max_dist][comm_idx_2]
-
-            # Zero out remaining sparse row elements
-            zero_col_bool = np.zeros_like(col_dist, dtype=bool)
-            zero_col_bool[comm_idx_1] = True
-            zero_col_bool = ~zero_col_bool
-            row_values[zero_col_bool] = 0
-
-            # Replace the values in the sparse matrix
-            OE_normed_mat.data[current_row_to_next_sparse_slice] = row_values
+        OE_normed_mat.data[divide_bool] /= self.avg_background_dist[col_dist[divide_bool]]
+        OE_normed_mat.data[~divide_bool] = 0
+        del col_dist, divide_bool
 
         # Symmetrize the matrix
         diag = OE_normed_mat.diagonal()
@@ -457,6 +444,10 @@ class LowCoverageFilter:
         """
         Filter low-coverage loci from O/E normalized contact matrix.
 
+        The matrix itself is not sliced here. The caller slices it with
+        current_include_bool, rows then columns, so that each intermediate
+        matrix can be released before the next one is created.
+
         Parameters
         ----------
         input_mat : sp.csr_matrix
@@ -469,7 +460,17 @@ class LowCoverageFilter:
         Returns
         -------
         tuple
-            (cutoff, filtered_matrix, include_bool, include_idx)
+            (cutoff, current_include_bool, include_bool, include_idx)
+            - current_include_bool: Loci of input_mat to keep (length = input_mat.shape[0])
+            - include_bool: Loci to keep in the full chromosome (length = number of bins)
+            - include_idx: Indices of the True entries of include_bool
+
+        Examples
+        --------
+        >>> cutoff, current_include_bool, include_bool, include_idx = \\
+        ...     LowCoverageFilter.filter_low_coverage(OE_normed_mat)
+        >>> OE_normed_mat = OE_normed_mat[current_include_bool]
+        >>> OE_normed_mat = OE_normed_mat[:, current_include_bool]
         """
         # Compute average O/E for each locus
         current_mean_contacts = input_mat.mean(axis=0)
@@ -514,7 +515,6 @@ class LowCoverageFilter:
 
         current_include_bool = current_mean_contacts > cutoff
         current_include_idx = np.nonzero(current_include_bool)[0]
-        current_include_slice = np.ix_(current_include_bool, current_include_bool)
 
         # Initial O/E matrix
         if include_bool is None:
@@ -526,7 +526,7 @@ class LowCoverageFilter:
             include_bool[include_idx[~current_include_bool]] = False
             include_idx = np.nonzero(include_bool)[0]
 
-        return cutoff, input_mat[current_include_slice].copy(), include_bool, include_idx
+        return cutoff, current_include_bool, include_bool, include_idx
 
 
 class EigenDecomposer:
@@ -1127,12 +1127,16 @@ class HiCSCA:
             normalizer = self.normalizers[resolution]
             OE_normed_mat = normalizer.apply_OE_normalization(chr_name)
 
-            # Histogram-based low-coverage filtering
-            cutoff, OE_normed_mat_nonzero, include_bool, include_idx = \
-                LowCoverageFilter.filter_low_coverage(OE_normed_mat, include_bool=None, cutoff=None)
-
             mean_contacts = OE_normed_mat.mean(axis=0)
             OE_normed_diag = OE_normed_mat.diagonal()
+
+            # Histogram-based low-coverage filtering
+            cutoff, current_include_bool, include_bool, include_idx = \
+                LowCoverageFilter.filter_low_coverage(OE_normed_mat, include_bool=None, cutoff=None)
+
+            # Keep included loci, rows then columns, so each intermediate matrix is released
+            OE_normed_mat = OE_normed_mat[current_include_bool]
+            OE_normed_mat_nonzero = OE_normed_mat[:, current_include_bool]
             del OE_normed_mat
 
             result_dict['cutoff'] = cutoff
@@ -1143,10 +1147,12 @@ class HiCSCA:
                 current_mean_contacts = OE_normed_mat_nonzero.mean(axis=0)
 
                 if (current_mean_contacts <= cutoff).sum() > 0:
-                    _, OE_normed_mat_nonzero, include_bool, include_idx = \
+                    _, current_include_bool, include_bool, include_idx = \
                         LowCoverageFilter.filter_low_coverage(
                             OE_normed_mat_nonzero, include_bool=include_bool, cutoff=cutoff
                         )
+                    OE_normed_mat_nonzero = OE_normed_mat_nonzero[current_include_bool]
+                    OE_normed_mat_nonzero = OE_normed_mat_nonzero[:, current_include_bool]
                     filter_iter += 1
                     if verbose:
                         print(f"Low-Coverage Filter: {resolution} - {chr_name} - Iter: {filter_iter}")
@@ -1167,13 +1173,20 @@ class HiCSCA:
             sqrt_deg = np.sqrt(deg)
             inv_sqrt_deg = 1.0 / sqrt_deg
 
-            laplacian_mat = -inv_sqrt_deg[:,None] * OE_normed_mat_nonzero * inv_sqrt_deg[None,:]
+            # Scale a CSR copy in place: -inv_sqrt_deg[row] * OE * inv_sqrt_deg[col]
+            # (avoids the COO intermediates of broadcasting a dense vector against a sparse matrix)
+            laplacian_mat = OE_normed_mat_nonzero.copy()
+            laplacian_mat.data *= -np.repeat(inv_sqrt_deg, np.diff(laplacian_mat.indptr))
+            laplacian_mat.data *= inv_sqrt_deg[laplacian_mat.indices]
             diag = laplacian_mat.diagonal()
             laplacian_mat.setdiag(diag + 1)
 
             # Perform eigendecomposition
             decomposer = EigenDecomposer(laplacian_mat, sqrt_deg, verbose=verbose)
             results, converged = decomposer.decompose(max_retry=6, init_max_iter=20)
+
+            # The Laplacian is not needed after the eigendecomposition
+            del decomposer, laplacian_mat
 
             result_dict['Eig Converged'] = converged
 
@@ -1182,7 +1195,6 @@ class HiCSCA:
                 if verbose:
                     print(f"Failed: {resolution} - {chr_name} - Eigendecomposition did not converge")
                 self.results[resolution][chr_name] = result_dict
-                gc.collect()
                 continue
 
             # Extract eigenvalues and eigenvectors
@@ -1202,14 +1214,12 @@ class HiCSCA:
             )
 
             del OE_normed_mat_nonzero
-            gc.collect()
 
             if selected_eig_idx is None:
                 result_dict['Success'] = False
                 if verbose:
                     print(f"Failed: {resolution} - {chr_name} - No valid eigenvector found")
                 self.results[resolution][chr_name] = result_dict
-                gc.collect()
                 continue
 
             # Create full compartment prediction vector
@@ -1235,7 +1245,6 @@ class HiCSCA:
                       f"Score: {modified_inter_eigval_score:.4f}")
 
             self.results[resolution][chr_name] = result_dict
-            gc.collect()
 
     def process_all_chromosomes(self, resolutions: Optional[List[int]] = None,
                                verbose: bool = True) -> None:
