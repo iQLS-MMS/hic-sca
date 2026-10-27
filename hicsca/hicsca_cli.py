@@ -100,6 +100,13 @@ Note: Either -f or --load-hdf5 (or both) must be provided.
     )
 
     parser.add_argument(
+        '--no-low-coverage-filter',
+        action='store_true',
+        help='Disable the histogram-based low-coverage filter; remove only loci '
+             'with zero contacts (ignored with --load-hdf5)'
+    )
+
+    parser.add_argument(
         '--bed',
         action='store_true',
         help='Generate BED files for each resolution (optional)'
@@ -151,6 +158,7 @@ def main():
     print(f"Chromosomes:      {args.chromosomes if args.chromosomes else 'all autosomal'}")
     print(f"Output prefix:    {args.output_prefix}")
     print(f"Output directory: {output_dir.absolute()}")
+    print(f"Low-cov. filter:  {not args.no_low_coverage_filter}")
     print(f"Verbose:          {args.verbose}")
     print(f"Generate BED:     {args.bed}")
     print(f"Generate BedGraph: {args.bedgraph}")
@@ -194,7 +202,8 @@ def main():
                 chr_names=args.chromosomes,
                 resolutions=args.resolutions,
                 norm_type="NONE",
-                smoothing_cutoff=400
+                smoothing_cutoff=400,
+                low_coverage_filter=not args.no_low_coverage_filter
             )
         except Exception as e:
             print(f"Error initializing HiC-SCA: {e}", file=sys.stderr)

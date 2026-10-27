@@ -67,7 +67,6 @@ class TestResultStructure:
             'Eig Converged',
             'deg',
             'OE_normed_diag',
-            'non_zero_not_included_bool',
             'include_bool',
             'cutoff'
         ]
@@ -369,3 +368,54 @@ class TestCrossResolutionAnalysis:
         assert ref_resolutions == comp_resolutions, \
             f"Resolution mismatch: reference={ref_resolutions}, " \
             f"computed={comp_resolutions}"
+
+
+@pytest.fixture(scope="module")
+def no_filter_instance(test_data_available):
+    """HiCSCA with low_coverage_filter=False, first chromosome at 500 kb."""
+    if not test_data_available['hic_file']:
+        pytest.skip("Test Hi-C file not available")
+    from hicsca.hicsca import HiCSCA
+
+    hic_file = Path(__file__).parent / "test_data" / "ENCFF216ZNY_Intra_Only.hic"
+    hicsca_inst = HiCSCA(str(hic_file), resolutions=[500000],
+                         low_coverage_filter=False)
+    hicsca_inst.chr_names = hicsca_inst.chr_names[:1]
+    hicsca_inst.process_all_chromosomes(verbose=False)
+    return hicsca_inst
+
+
+class TestLowCoverageFilterOff:
+    """Tests for low_coverage_filter=False (zero-row removal only)."""
+
+    def test_only_zero_rows_removed(self, no_filter_instance):
+        """Included loci are exactly those with mean O/E > 0."""
+        chr_name = no_filter_instance.chr_names[0]
+        result = no_filter_instance.results[500000][chr_name]
+        mean_contacts = np.asarray(
+            no_filter_instance.normalizers[500000].apply_OE_normalization(chr_name).mean(axis=0)
+        ).flatten()
+
+        assert result['cutoff'] == 0
+        assert np.array_equal(result['include_bool'], mean_contacts > 0)
+        assert result['Success']
+
+    def test_hdf5_round_trip(self, no_filter_instance, tmp_path):
+        """low_coverage_filter is saved to and restored from HDF5."""
+        from hicsca.hicsca import HiCSCA
+
+        h5_path = tmp_path / "no_filter.h5"
+        no_filter_instance.to_hdf5(str(h5_path))
+        assert not HiCSCA.from_hdf5(str(h5_path)).low_coverage_filter
+
+
+def test_excluded_loci_unassigned(computed_results):
+    """Loci excluded by filtering stay at 0 (not set to B)."""
+    n_excluded = 0
+    for chrs in computed_results.values():
+        for result in chrs.values():
+            if result.get('Success', False):
+                excluded = ~result['include_bool']
+                n_excluded += excluded.sum()
+                assert np.all(result['assigned_AB_compartment'][excluded] == 0)
+    assert n_excluded > 0

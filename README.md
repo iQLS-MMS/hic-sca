@@ -270,6 +270,7 @@ hicsca.plot_cross_resolution_mcc(save_path="cross_res_mcc.png")
 - `-o, --output-dir DIR` - Output directory (default: current directory)
 - `-c, --chromosomes CHR [CHR ...]` - Space-separated chromosome names (default: chr1-chr22)
 - `-v, --verbose` - Enable verbose output
+- `--no-low-coverage-filter` - Disable the histogram-based low-coverage filter; remove only loci with zero contacts
 - `--bed` - Generate BED files for each resolution
 - `--bedgraph` - Generate BedGraph files for each resolution
 
@@ -433,7 +434,8 @@ hicsca = HiCSCA(
     chr_names=None,  # None = all autosomal chromosomes
     resolutions=None,  # None = all available resolutions
     norm_type="NONE",
-    smoothing_cutoff=400
+    smoothing_cutoff=400,
+    low_coverage_filter=True
 )
 ```
 
@@ -443,6 +445,7 @@ hicsca = HiCSCA(
 - `resolutions` (list or None): Resolutions in bp (default: auto-detect all)
 - `norm_type` (str): Normalization type for hictkpy (default: "NONE")
 - `smoothing_cutoff` (int): Smoothing parameter for O/E normalization (default: 400)
+- `low_coverage_filter` (bool): If True, remove low-coverage loci with the histogram-based filter; if False, remove only loci with zero contacts (default: True)
 
 **Key Methods:**
 ```python
@@ -550,7 +553,6 @@ Each result dictionary contains:
 **Quality Control:**
 - `cutoff` (float): Low-coverage filter cutoff value
 - `include_bool` (ndarray): Boolean array indicating bins included in analysis
-- `non_zero_not_included_bool` (ndarray): Boolean array for excluded non-zero bins
 - `deg` (ndarray): Degree (column sums) of filtered O/E matrix
 - `OE_normed_diag` (ndarray): Diagonal of O/E matrix for included bins
 

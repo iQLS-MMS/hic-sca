@@ -48,7 +48,6 @@ Each `result_dict` contains the following fields:
 |-------|------|-------------|
 | `cutoff` | `float` | Low-coverage filter cutoff value determined by histogram-based peak detection |
 | `include_bool` | `np.ndarray` | Boolean array (length = number of bins) indicating which bins passed the low-coverage filter and were included in eigendecomposition |
-| `non_zero_not_included_bool` | `np.ndarray` | Boolean array (length = number of bins) indicating bins with non-zero contacts that were excluded by filtering |
 | `deg` | `np.ndarray` | Degree (column sums) of the filtered O/E normalized matrix (length = number of included bins) |
 | `OE_normed_diag` | `np.ndarray` | Diagonal elements of the O/E normalized matrix for included bins only (length = number of included bins). Used for A-B orientation selection. |
 
@@ -92,13 +91,9 @@ total_bins = int(np.ceil(chr_length / 100000))
 included_bins = result['include_bool'].sum()
 excluded_bins = (~result['include_bool']).sum()
 
-# Bins with non-zero contacts that were filtered out
-excluded_nonzero_bins = result['non_zero_not_included_bool'].sum()
-
 print(f"Total bins: {total_bins}")
 print(f"Included in analysis: {included_bins}")
-print(f"Excluded (low coverage): {excluded_bins}")
-print(f"Excluded (had contacts but below cutoff): {excluded_nonzero_bins}")
+print(f"Excluded (zero or low coverage): {excluded_bins}")
 ```
 
 ### Accessing Eigendecomposition Details
@@ -180,5 +175,5 @@ When eigendecomposition succeeds but no valid eigenvector is found:
 ## Notes
 
 1. **Array Lengths**:
-   - `assigned_AB_compartment`, `include_bool`, `non_zero_not_included_bool`: Length = total number of bins
+   - `assigned_AB_compartment`, `include_bool`: Length = total number of bins
    - `eigvects`, `deg`, `OE_normed_diag`: Length = number of included bins after filtering

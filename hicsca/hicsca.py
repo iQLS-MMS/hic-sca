@@ -771,8 +771,7 @@ class CompartmentAssigner:
     @staticmethod
     def set_AB_orientation(eigenvect: np.ndarray,
                           OE_normed_diag: np.ndarray,
-                          assigned_AB_compartment: np.ndarray,
-                          non_zero_not_included_bool: np.ndarray) -> np.ndarray:
+                          assigned_AB_compartment: np.ndarray) -> np.ndarray:
         """
         Set the orientation of A-B compartments based on diagonal enrichment.
 
@@ -783,9 +782,7 @@ class CompartmentAssigner:
         OE_normed_diag : np.ndarray
             Diagonal of O/E normalized matrix
         assigned_AB_compartment : np.ndarray
-            Predicted A-B compartment vector
-        non_zero_not_included_bool : np.ndarray
-            Boolean array for excluded loci
+            Predicted A-B compartment vector (excluded loci are 0)
 
         Returns
         -------
@@ -798,9 +795,6 @@ class CompartmentAssigner:
         if OE_normed_diag[temp_pred_A].mean() < OE_normed_diag[temp_pred_B].mean():
             assigned_AB_compartment *= -1
 
-        min_B_compartment = -np.abs(assigned_AB_compartment[assigned_AB_compartment < 0]).min()
-
-        assigned_AB_compartment[non_zero_not_included_bool] = min_B_compartment
         assigned_AB_compartment /= np.linalg.norm(assigned_AB_compartment)
 
         return assigned_AB_compartment
@@ -884,7 +878,8 @@ class HiCSCA:
                  resolutions: Optional[List[int]] = None,
                  chr_length_dict: Optional[Dict[str, int]] = None,
                  norm_type: str = "NONE",
-                 smoothing_cutoff: int = 400):
+                 smoothing_cutoff: int = 400,
+                 low_coverage_filter: bool = True):
         """
         Initialize the HiC-SCA pipeline.
 
@@ -906,6 +901,10 @@ class HiCSCA:
             Normalization type for hic_loader (default: "NONE")
         smoothing_cutoff : int, optional
             Cutoff threshold for smoothing background contacts (default: 400).
+        low_coverage_filter : bool, optional
+            If True, remove low-coverage loci with the histogram-based filter.
+            If False, remove only loci whose mean O/E is zero (cutoff = 0)
+            (default: True).
 
         Raises
         ------
@@ -952,6 +951,7 @@ class HiCSCA:
 
         self.norm_type = norm_type
         self.smoothing_cutoff = smoothing_cutoff
+        self.low_coverage_filter = low_coverage_filter
         self.normalizers = {}  # Resolution -> BackgroundNormalizer
         self._background_computed = set()  # Track which resolutions have background computed
         self.results = {}  # Store all results: {resolution: {chr_name: result_dict}}
@@ -1006,8 +1006,7 @@ class HiCSCA:
         init_params.update(metadata)
 
         # Drop removed parameters stored in older HDF5 files
-        for removed_param in ['min_nonzero_inter_AB_contacts', 'min_peak_height', 'low_coverage_filter',
-                              'data_type']:
+        for removed_param in ['min_nonzero_inter_AB_contacts', 'min_peak_height', 'data_type']:
             init_params.pop(removed_param, None)
 
         # Create new HiCSCA instance
@@ -1127,12 +1126,14 @@ class HiCSCA:
             normalizer = self.normalizers[resolution]
             OE_normed_mat = normalizer.apply_OE_normalization(chr_name)
 
-            mean_contacts = OE_normed_mat.mean(axis=0)
             OE_normed_diag = OE_normed_mat.diagonal()
 
-            # Histogram-based low-coverage filtering
+            # Histogram-based low-coverage filtering, or zero-row removal only (cutoff = 0)
             cutoff, current_include_bool, include_bool, include_idx = \
-                LowCoverageFilter.filter_low_coverage(OE_normed_mat, include_bool=None, cutoff=None)
+                LowCoverageFilter.filter_low_coverage(
+                    OE_normed_mat, include_bool=None,
+                    cutoff=None if self.low_coverage_filter else 0
+                )
 
             # Keep included loci, rows then columns, so each intermediate matrix is released
             OE_normed_mat = OE_normed_mat[current_include_bool]
@@ -1159,12 +1160,7 @@ class HiCSCA:
                 else:
                     break
 
-            # Create boolean for excluded non-zero loci
-            non_zero_not_included_bool = mean_contacts > 0
-            non_zero_not_included_bool[include_idx] = False
-
             result_dict['include_bool'] = include_bool
-            result_dict['non_zero_not_included_bool'] = non_zero_not_included_bool
             result_dict['OE_normed_diag'] = OE_normed_diag[include_bool]
 
             # Prepare the laplacian matrix
@@ -1230,8 +1226,7 @@ class HiCSCA:
             assigned_AB_compartment = assigner.set_AB_orientation(
                 eigenvects[selected_eig_idx],
                 OE_normed_diag[include_bool],
-                assigned_AB_compartment,
-                non_zero_not_included_bool
+                assigned_AB_compartment
             )
 
             result_dict['assigned_AB_compartment'] = assigned_AB_compartment

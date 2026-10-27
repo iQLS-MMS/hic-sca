@@ -246,6 +246,7 @@ def save_to_hdf5(hicsca_inst,
             'resolutions': hicsca_inst.resolutions,
             'norm_type': hicsca_inst.norm_type,
             'smoothing_cutoff': hicsca_inst.smoothing_cutoff,
+            'low_coverage_filter': hicsca_inst.low_coverage_filter,
             'chr_length_dict': hicsca_inst.chr_length_dict
         }
     }
